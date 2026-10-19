@@ -6,8 +6,9 @@ uploads it to App Store Connect without automatically submitting it for review.
 ## 1. Apple records
 
 1. Create the explicit App ID `com.ksanew.videoedit` in Apple Developer.
-2. Enable Push Notifications for that App ID if Firebase notifications will be
-   used.
+2. Push Notifications are intentionally not included in the current iOS
+   signing profile. Enable the Apple capability and restore an
+   `aps-environment` entitlement later if remote notifications are required.
 3. Create the app in App Store Connect with bundle ID `com.ksanew.videoedit`.
 4. Copy its numeric Apple ID from App Information.
 5. Complete App Privacy, age rating, category, support URL, privacy-policy URL,
