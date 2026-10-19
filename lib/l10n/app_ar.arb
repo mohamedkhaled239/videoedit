@@ -1,0 +1,21 @@
+{
+  "@@locale": "ar",
+  "appTitle": "تنزيل المستندات وتحرير الفيديو",
+  "pasteLinkHint": "الصق رابطًا مباشرًا لمستند لحفظه على جهازك",
+  "urlHint": "https://example.com/document.pdf",
+  "paste": "لصق",
+  "downloadFile": "تنزيل الملف",
+  "enterFileUrl": "الرجاء إدخال الرابط المباشر للملف",
+  "enterValidUrl": "الرجاء إدخال رابط صحيح",
+  "status": "الحالة",
+  "downloading": "جاري التحميل",
+  "fetchingInfo": "جاري جلب المعلومات",
+  "saving": "جاري الحفظ",
+  "processing": "قيد المعالجة",
+  "downloadSuccess": "تم تحميل الملف بنجاح ✓",
+  "unsupportedFile": "نوع الملف غير مدعوم",
+  "downloadFailed": "فشل تحميل الملف",
+  "saveFailed": "فشل حفظ الملف",
+  "errorOccurred": "حدث خطأ: {error}",
+  "albumName": "تطبيق تحرير الفيديو"
+}

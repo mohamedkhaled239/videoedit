@@ -1,0 +1,28 @@
+{
+  "@@locale": "en",
+  "appTitle": "Document Downloader & Video Editor",
+  "pasteLinkHint": "Paste a direct document link to save it on your device",
+  "urlHint": "https://example.com/document.pdf",
+  "paste": "Paste",
+  "downloadFile": "Download File",
+  "enterFileUrl": "Please enter the direct file URL",
+  "enterValidUrl": "Please enter a valid URL",
+  "status": "Status",
+  "downloading": "Downloading",
+  "fetchingInfo": "Fetching information",
+  "saving": "Saving",
+  "processing": "Processing",
+  "downloadSuccess": "File downloaded successfully ✓",
+  "unsupportedFile": "This file type is not supported",
+  "downloadFailed": "Failed to download file",
+  "saveFailed": "Failed to save file",
+  "errorOccurred": "An error occurred: {error}",
+  "@errorOccurred": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "albumName": "Video Editing App"
+}

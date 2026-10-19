@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "60905321445",
+    "project_id": "videoedit-88155",
+    "storage_bucket": "videoedit-88155.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60905321445:android:0ef3f912fa3b947a04f50c",
+        "android_client_info": {
+          "package_name": "com.ksanew.videoedit"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbedeucsqqQ9AJmJ6f_2ojrbWQgwyVKjg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
