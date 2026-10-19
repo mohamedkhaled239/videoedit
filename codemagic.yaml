@@ -43,7 +43,21 @@ workflows:
       - name: Install CocoaPods dependencies
         script: |
           cd ios
+          rm -rf Pods
           pod install --repo-update
+
+      - name: Verify Swift module settings
+        script: |
+          SETTINGS=$(xcodebuild \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -showBuildSettings)
+          echo "$SETTINGS" | grep "BUILD_LIBRARY_FOR_DISTRIBUTION = NO"
+          if echo "$SETTINGS" | grep -q "BUILD_LIBRARY_FOR_DISTRIBUTION = YES"; then
+            echo "Library evolution must remain disabled for Flutter bridging headers."
+            exit 1
+          fi
 
       - name: Analyze project
         script: flutter analyze
