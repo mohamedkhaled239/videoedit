@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../models/video_project.dart';
 import '../providers/projects_provider.dart';
 import '../providers/app_config_provider.dart';
 import '../providers/video_editor_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/export_sharing.dart';
+import 'audio_mix_screen.dart';
 import 'edit_screen.dart';
 import 'merge_screen.dart';
 import 'player_screen.dart';
@@ -87,6 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'mute':
         await _muteVideo(editor);
         return;
+      case 'audio':
+        _open(const AudioMixScreen());
+        return;
     }
   }
 
@@ -111,11 +115,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirmed != true || !mounted) return;
     final result = await editor.removeAudio();
     if (!mounted) return;
-    _showMessage(
-      result == null
-          ? editor.errorMessage ?? 'تعذّر كتم الصوت'
-          : 'تم إنشاء الفيديو بدون صوت وحفظه في المعرض',
-      error: result == null,
+    if (result == null) {
+      _showMessage(editor.errorMessage ?? 'تعذّر كتم الصوت', error: true);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      exportedVideoSnackBar(
+        context,
+        result,
+        message: 'تم إنشاء الفيديو بدون صوت وحفظه في المعرض',
+      ),
     );
   }
 
@@ -160,11 +169,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 20),
                   _ToolsGrid(onTool: _runTool),
                   const SizedBox(height: 28),
-                  _RecentProjects(
-                    onOpenProject: _openProject,
-                    onRename: _renameProject,
-                    onDelete: _deleteProject,
-                    onViewAll: widget.onOpenProjects,
+                  _CurrentVideoCard(
+                    editor: editor,
+                    isPicking: _isPicking,
+                    onReplace: _replaceCurrentVideo,
+                    onDelete: _removeCurrentVideo,
+                    onShare: editor.processedVideoPath == null
+                        ? null
+                        : _shareCurrentVideo,
+                    onPreview: editor.videoPath == null
+                        ? null
+                        : () => _open(
+                            PlayerScreen(
+                              videoPath:
+                                  editor.processedVideoPath ??
+                                  editor.videoPath!,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 22),
                   _ProjectStorageCard(onManage: widget.onOpenProjects),
@@ -222,52 +243,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openProject(VideoProject project) async {
-    if (!await context.read<ProjectsProvider>().sourceExists(project)) {
-      if (mounted) _showMessage('ملف المشروع غير موجود', error: true);
-      return;
-    }
-    if (!mounted) return;
-    try {
-      await context.read<VideoEditorProvider>().loadVideo(project.videoPath);
-      if (!mounted) return;
-      _open(PlayerScreen(videoPath: project.videoPath));
-    } catch (error) {
-      if (mounted) _showMessage('تعذّر فتح المشروع: $error', error: true);
-    }
+  Future<void> _replaceCurrentVideo() async {
+    await _pickVideo();
   }
 
-  Future<void> _renameProject(VideoProject project) async {
-    final controller = TextEditingController(text: project.name);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('إعادة تسمية المشروع'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name != null && mounted) {
-      await context.read<ProjectsProvider>().rename(project.id, name);
-    }
-  }
-
-  Future<void> _deleteProject(VideoProject project) async {
+  Future<void> _removeCurrentVideo() async {
+    final editor = context.read<VideoEditorProvider>();
+    if (editor.videoPath == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('حذف المشروع؟'),
-        content: const Text('سيُحذف من القائمة فقط ولن نحذف الفيديو الأصلي.'),
+        title: const Text('إزالة الفيديو الحالي؟'),
+        content: const Text(
+          'ستتم إزالة الفيديو من مساحة التعديل فقط. لن يُحذف الملف من جهازك.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -282,7 +271,18 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      await context.read<ProjectsProvider>().delete(project.id);
+      editor.reset();
+      _showMessage('تمت إزالة الفيديو الحالي.');
+    }
+  }
+
+  Future<void> _shareCurrentVideo() async {
+    final path = context.read<VideoEditorProvider>().processedVideoPath;
+    if (path == null) return;
+    try {
+      await shareExportedVideo(context, path);
+    } catch (error) {
+      if (mounted) _showMessage('تعذّرت المشاركة: $error', error: true);
     }
   }
 
@@ -524,6 +524,13 @@ class _ToolsGrid extends StatelessWidget {
       Color(0xFFFF5FA2),
     ),
     (
+      'audio',
+      Icons.music_note_rounded,
+      'الصوت والموسيقى',
+      'مستوى وصوت خلفي',
+      Color(0xFF9B6BFF),
+    ),
+    (
       'merge',
       Icons.video_library_rounded,
       'دمج المقاطع',
@@ -612,200 +619,163 @@ class _ToolsGrid extends StatelessWidget {
   );
 }
 
-class _RecentProjects extends StatelessWidget {
-  const _RecentProjects({
-    required this.onOpenProject,
-    required this.onRename,
+class _CurrentVideoCard extends StatelessWidget {
+  const _CurrentVideoCard({
+    required this.editor,
+    required this.isPicking,
+    required this.onReplace,
     required this.onDelete,
-    required this.onViewAll,
+    required this.onShare,
+    required this.onPreview,
   });
 
-  final ValueChanged<VideoProject> onOpenProject;
-  final ValueChanged<VideoProject> onRename;
-  final ValueChanged<VideoProject> onDelete;
-  final VoidCallback onViewAll;
+  final VideoEditorProvider editor;
+  final bool isPicking;
+  final Future<void> Function() onReplace;
+  final Future<void> Function() onDelete;
+  final Future<void> Function()? onShare;
+  final VoidCallback? onPreview;
 
-  @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<ProjectsProvider>();
-    final projects = provider.projects.take(4).toList();
-    return Column(
-      children: [
-        Row(
-          children: [
-            const Icon(
-              Icons.schedule_rounded,
-              color: AppColors.primary,
-              size: 25,
-            ),
-            const SizedBox(width: 7),
-            const Expanded(
-              child: Text(
-                'مشاريعي الأخيرة',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: onViewAll,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
-              label: const Text('عرض الكل'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        if (provider.isLoading)
-          const SizedBox(
-            height: 150,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (projects.isEmpty)
-          Container(
-            height: 120,
-            width: double.infinity,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Text(
-              'ابدأ أول مشروع وسيظهر هنا',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          )
-        else
-          SizedBox(
-            height: 166,
-            child: Row(
-              children: projects
-                  .map(
-                    (project) => Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: _ProjectTile(
-                          project: project,
-                          onOpen: () => onOpenProject(project),
-                          onRename: () => onRename(project),
-                          onDelete: () => onDelete(project),
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ProjectTile extends StatelessWidget {
-  const _ProjectTile({
-    required this.project,
-    required this.onOpen,
-    required this.onRename,
-    required this.onDelete,
-  });
-
-  final VideoProject project;
-  final VoidCallback onOpen;
-  final VoidCallback onRename;
-  final VoidCallback onDelete;
-
-  String get duration {
-    final seconds = project.durationMs ~/ 1000;
+  String get _duration {
+    final seconds = (editor.metadata?.duration ?? 0) ~/ 1000;
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final thumbnail = project.thumbnailPath;
+    final videoPath = editor.processedVideoPath ?? editor.videoPath;
+    final hasVideo = videoPath != null;
+    final name = hasVideo
+        ? videoPath.split(Platform.pathSeparator).last
+        : 'لم يتم اختيار فيديو بعد';
+    final thumbnail = editor.thumbnailPath;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Material(
-            color: AppColors.elevatedSurface,
-            borderRadius: BorderRadius.circular(14),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onOpen,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (thumbnail != null && File(thumbnail).existsSync())
-                    Image.file(File(thumbnail), fit: BoxFit.cover)
-                  else
-                    const Icon(
-                      Icons.movie_outlined,
-                      color: AppColors.textSecondary,
-                    ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.transparent, Colors.black87],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                  PositionedDirectional(
-                    end: -4,
-                    top: -5,
-                    child: PopupMenuButton<String>(
-                      padding: EdgeInsets.zero,
-                      iconColor: Colors.white,
-                      onSelected: (value) {
-                        if (value == 'rename') onRename();
-                        if (value == 'delete') onDelete();
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Text('إعادة التسمية'),
-                        ),
-                        PopupMenuItem(value: 'delete', child: Text('حذف')),
+        const Row(
+          children: [
+            Icon(
+              Icons.movie_filter_outlined,
+              color: AppColors.primary,
+              size: 25,
+            ),
+            SizedBox(width: 7),
+            Text(
+              'الفيديو الحالي',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(19),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Material(
+                color: AppColors.elevatedSurface,
+                borderRadius: BorderRadius.circular(13),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onPreview,
+                  child: SizedBox(
+                    width: 112,
+                    height: 78,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (thumbnail != null && File(thumbnail).existsSync())
+                          Image.file(File(thumbnail), fit: BoxFit.cover)
+                        else
+                          const Icon(
+                            Icons.video_library_outlined,
+                            color: AppColors.textSecondary,
+                          ),
+                        if (hasVideo)
+                          const Align(
+                            alignment: Alignment.center,
+                            child: Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: Colors.white,
+                              size: 34,
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                  PositionedDirectional(
-                    start: 7,
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: Text(
-                        duration,
-                        textDirection: TextDirection.ltr,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      hasVideo ? 'المدة $_duration' : 'اختر فيديو لبدء التعديل',
+                      textDirection: hasVideo ? TextDirection.ltr : null,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: isPicking ? null : () => onReplace(),
+                            icon: const Icon(
+                              Icons.swap_horiz_rounded,
+                              size: 18,
+                            ),
+                            label: Text(hasVideo ? 'استبدال' : 'اختيار فيديو'),
+                          ),
+                        ),
+                        if (hasVideo) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: 'إزالة الفيديو',
+                            onPressed: () => onDelete(),
+                            style: IconButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                              backgroundColor: AppColors.error.withValues(
+                                alpha: .12,
+                              ),
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (onShare != null) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          onPressed: () => onShare!(),
+                          icon: const Icon(Icons.share_rounded, size: 18),
+                          label: const Text('مشاركة الفيديو المُصدَّر'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          project.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
-        ),
-        Text(
-          '${project.updatedAt.year}/${project.updatedAt.month.toString().padLeft(2, '0')}/${project.updatedAt.day.toString().padLeft(2, '0')}',
-          textDirection: TextDirection.ltr,
-          style: const TextStyle(fontSize: 8.5, color: AppColors.textSecondary),
         ),
       ],
     );

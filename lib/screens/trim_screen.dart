@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../providers/video_editor_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/export_sharing.dart';
 import '../widgets/custom_app_bar.dart';
 
 class TrimScreen extends StatefulWidget {
@@ -360,9 +361,14 @@ class _TrimScreenState extends State<TrimScreen> {
         throw Exception(provider.errorMessage ?? 'تعذّر قص الفيديو');
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم قص الفيديو وحفظه في المعرض')),
+        exportedVideoSnackBar(
+          context,
+          result,
+          message: 'تم قص الفيديو وحفظه في المعرض',
+        ),
       );
-      Navigator.pop(context, result);
+      // Keep the success action visible so the user can share the exported
+      // video before returning to the editor.
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/projects_provider.dart';
 import '../providers/app_config_provider.dart';
+import '../providers/projects_provider.dart';
 import '../providers/video_editor_provider.dart';
 import '../services/notification_service.dart';
 import '../utils/app_colors.dart';

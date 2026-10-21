@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/video_editor_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/export_sharing.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/studio_brand.dart';
 
@@ -85,8 +86,14 @@ class _MergeScreenState extends State<MergeScreen> {
       return;
     }
 
-    _showMessage('تم دمج المقاطع وحفظ الفيديو بنجاح.');
-    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      exportedVideoSnackBar(
+        context,
+        result,
+        message: 'تم دمج المقاطع وحفظ الفيديو بنجاح.',
+      ),
+    );
+    // Remain on the completion state so the Share action is usable.
   }
 
   void _showMessage(String message, {bool error = false}) {

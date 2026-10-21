@@ -6,6 +6,7 @@ import 'package:gal/gal.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../services/audio_mixing_service.dart';
 import '../utils/video_editing_rules.dart';
 
 class VideoEditorProvider extends ChangeNotifier {
@@ -67,6 +68,10 @@ class VideoEditorProvider extends ChangeNotifier {
       throw Exception('لم يتم إنشاء ملف الملف المعدل');
     }
 
+    return _completeExport(outputPath);
+  }
+
+  Future<String> _completeExport(String outputPath) async {
     final outputFile = File(outputPath);
     if (!await outputFile.exists() || await outputFile.length() == 0) {
       throw Exception('ملف الملف الناتج غير صالح');
@@ -94,6 +99,61 @@ class VideoEditorProvider extends ChangeNotifier {
     } catch (_) {}
 
     return outputPath;
+  }
+
+  /// Applies the selected audio gains and, when chosen, loops background music
+  /// for the duration of the video before exporting it as a new MP4.
+  Future<String?> mixAudio({
+    required double originalVolume,
+    String? musicPath,
+    required double musicVolume,
+  }) async {
+    if (_videoPath == null) {
+      _errorMessage = 'اختر فيديو أولًا';
+      notifyListeners();
+      return null;
+    }
+    if (!AudioMixingService.isSupported) {
+      _errorMessage = 'خلط الصوت مدعوم حاليًا على iPhone وiPad فقط.';
+      notifyListeners();
+      return null;
+    }
+    if (musicPath != null) {
+      final music = File(musicPath);
+      if (!await music.exists() || await music.length() == 0) {
+        _errorMessage = 'ملف الموسيقى غير متاح أو فارغ.';
+        notifyListeners();
+        return null;
+      }
+    }
+
+    try {
+      _isProcessing = true;
+      _exportProgress = 0;
+      _errorMessage = null;
+      notifyListeners();
+
+      final outputPath = await _createOutputPath('audio');
+      final mixedPath = await AudioMixingService.exportMix(
+        videoPath: _videoPath!,
+        outputPath: outputPath,
+        originalVolume: originalVolume,
+        musicPath: musicPath,
+        musicVolume: musicVolume,
+      );
+      final completedPath = await _completeExport(mixedPath);
+      _isProcessing = false;
+      notifyListeners();
+      return completedPath;
+    } catch (error, stackTrace) {
+      _errorMessage =
+          'تعذّر تصدير الصوت: ${error.toString().replaceFirst('Exception: ', '')}';
+      debugPrint('Audio mix failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      _isProcessing = false;
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<void> loadVideo(String path) async {

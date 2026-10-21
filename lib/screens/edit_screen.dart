@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../providers/video_editor_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/export_sharing.dart';
 import '../widgets/custom_app_bar.dart';
 
 enum EditType { speed, rotate, crop, compress, flip, multiple }
@@ -379,9 +380,15 @@ class _EditScreenState extends State<EditScreen> {
         throw Exception(provider.errorMessage ?? 'تعذّر تصدير الفيديو');
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم إنشاء الملف وحفظه في المعرض')),
+        exportedVideoSnackBar(
+          context,
+          result,
+          message: 'تم إنشاء الملف وحفظه في المعرض',
+        ),
       );
-      Navigator.pop(context, result);
+      // Stay on this screen long enough for the user to use the Share action.
+      // The provider already points to the exported video, so backing out keeps
+      // the new file as the active project.
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
