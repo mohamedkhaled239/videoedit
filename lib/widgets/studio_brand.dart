@@ -100,14 +100,14 @@ class StudioAppBar extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: radius,
             gradient: const LinearGradient(
-              colors: [Color(0xFF161D26), Color(0xFF11161D)],
+              colors: [Color(0xFFFFFFFF), Color(0xFFF0FAFB)],
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
             ),
-            border: Border.all(color: const Color(0xFF232C38)),
+            border: Border.all(color: AppColors.border),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x33000000),
+                color: Color(0x1849676E),
                 blurRadius: 18,
                 offset: Offset(0, 8),
               ),

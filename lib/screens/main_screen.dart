@@ -148,14 +148,14 @@ class _StudioNavigationBar extends StatelessWidget {
     child: Container(
       height: 66,
       decoration: BoxDecoration(
-        color: const Color(0xF5171B25),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: AppColors.border),
         boxShadow: const [
           BoxShadow(
-            color: Color(0xC0000000),
-            blurRadius: 30,
-            offset: Offset(0, 13),
+            color: Color(0x1F49676E),
+            blurRadius: 24,
+            offset: Offset(0, 10),
           ),
         ],
       ),
@@ -179,7 +179,7 @@ class _StudioNavigationBar extends StatelessWidget {
                       disabledBackgroundColor: AppColors.primaryDark,
                       foregroundColor: Colors.white,
                       shape: const CircleBorder(
-                        side: BorderSide(color: Color(0xFFBFA9FF), width: 1.5),
+                        side: BorderSide(color: Color(0xFFBDEFF1), width: 1.5),
                       ),
                       shadowColor: AppColors.primary,
                       elevation: 12,

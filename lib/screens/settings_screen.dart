@@ -579,7 +579,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: Column(
         children: [
           CustomAppBar(
-            isBack: true,
+            isBack: false,
             title: AppLocalizations.of(context)!.settings,
           ),
 

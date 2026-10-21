@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'app_colors.dart';
+
 class NativeAdWidget extends StatelessWidget {
   final NativeAd nativeAd;
   final double height;
@@ -49,7 +51,7 @@ class NativeAdHelper {
         cornerRadius: 10.0,
         callToActionTextStyle: NativeTemplateTextStyle(
           textColor: Colors.white,
-          backgroundColor: Colors.blue,
+          backgroundColor: AppColors.primary,
           style: NativeTemplateFontStyle.bold,
           size: 14.0,
         ),

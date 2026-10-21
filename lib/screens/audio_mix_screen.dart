@@ -353,7 +353,7 @@ class _AudioExportOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: Color(0xE60B0D12),
+    color: Color(0xE6F7FAFB),
     child: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,

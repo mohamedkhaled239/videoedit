@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +40,12 @@ void main() async {
   }
 
   runApp(const MyApp());
+
+  unawaited(
+    AdService.initialize().then((_) {
+      AdService.loadInterstitialAd();
+    }),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -97,7 +105,6 @@ class _MyAppState extends State<MyApp> {
                 child: child ?? const SizedBox.shrink(),
               );
             },
-
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
@@ -106,7 +113,7 @@ class _MyAppState extends State<MyApp> {
             ],
             supportedLocales: const [Locale('en'), Locale('ar')],
             locale: localeProvider.locale,
-            theme: AppTheme.dark(),
+            theme: AppTheme.light(),
             home: const MainScreen(),
           );
         },

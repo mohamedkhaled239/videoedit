@@ -29,12 +29,11 @@ workflows:
           : "${APP_STORE_CONNECT_PRIVATE_KEY:?Add it to appstore_credentials}"
           : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?Add it to appstore_credentials}"
           : "${APP_STORE_CONNECT_ISSUER_ID:?Add it to appstore_credentials}"
-          : "${IOS_ADMOB_APP_ID:?Add the production iOS AdMob App ID to appstore_credentials}"
 
       - name: Configure production iOS values
         script: |
           /usr/libexec/PlistBuddy -c \
-            "Set :GADApplicationIdentifier $IOS_ADMOB_APP_ID" \
+            "Set :GADApplicationIdentifier ca-app-pub-3233536447139983~7389704652" \
             ios/Runner/Info.plist
 
       - name: Get Flutter packages

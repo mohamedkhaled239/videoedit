@@ -179,11 +179,11 @@ class _MergeScreenState extends State<MergeScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: const LinearGradient(
-          colors: [Color(0xFF142729), Color(0xFF181C24)],
+          colors: [Color(0xFFE7F8F9), Color(0xFFFFFFFF)],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
-        border: Border.all(color: const Color(0xFF234039)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [

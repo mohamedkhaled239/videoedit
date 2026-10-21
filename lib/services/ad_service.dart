@@ -29,7 +29,7 @@ class AdService {
             : 'ca-app-pub-3233536447139983/3796226382')
       : (kDebugMode
             ? 'ca-app-pub-3940256099942544/4411468910'
-            : 'ca-app-pub-3233536447139983/7088306694');
+            : 'ca-app-pub-3233536447139983/6507867826');
 
   static String get _appOpenAdUnitId => Platform.isAndroid
       ? (kDebugMode
@@ -45,7 +45,7 @@ class AdService {
             : 'ca-app-pub-3233536447139983/1170063049')
       : (kDebugMode
             ? 'ca-app-pub-3940256099942544/2934735716'
-            : 'ca-app-pub-3233536447139983/3100960222');
+            : 'ca-app-pub-3233536447139983/4294522046');
 
   static String get _nativeAdUnitId => Platform.isAndroid
       ? (kDebugMode
@@ -53,10 +53,11 @@ class AdService {
             : 'ca-app-pub-3233536447139983/1170063049')
       : (kDebugMode
             ? 'ca-app-pub-3940256099942544/3986624511'
-            : 'ca-app-pub-3233536447139983/9902375551');
+            : 'ca-app-pub-3233536447139983/5332271547');
 
   /// Public getter for Banner Ad unit ID
   static String get bannerAdUnitId => _bannerAdUnitId;
+  static String get nativeAdUnitId => _nativeAdUnitId;
 
   static final ValueNotifier<bool> nativeAdReady = ValueNotifier(false);
 

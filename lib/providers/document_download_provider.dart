@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -16,12 +17,14 @@ class DownloadedDocument {
     required this.fileName,
     required this.mimeType,
     required this.kind,
+    required this.savedToPhotos,
   });
 
   final String path;
   final String fileName;
   final String mimeType;
   final DownloadedFileKind kind;
+  final bool savedToPhotos;
 }
 
 /// نتيجة استخراج رابط الفيديو الفعلي من صفحة ويب.
@@ -730,6 +733,22 @@ class DocumentDownloadProvider extends ChangeNotifier {
         );
       }
 
+      final kind = _kindOf(resolvedExtension);
+      var savedToPhotos = false;
+      if (kind == DownloadedFileKind.video) {
+        try {
+          // No album is supplied intentionally. On iOS this requests the
+          // least-privileged Photo Library access level: add-only.
+          await Gal.putVideo(outputFile.path);
+          savedToPhotos = true;
+        } catch (error, stackTrace) {
+          // The download remains available inside the app when Photos access
+          // is denied or saving to the library fails.
+          debugPrint('Saving downloaded video to Photos failed: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+
       _downloadedFilePath = outputFile.path;
       _downloadProgress = 1;
       return DownloadedDocument(
@@ -739,7 +758,8 @@ class DocumentDownloadProvider extends ChangeNotifier {
         mimeType: _genericBinaryMimeTypes.contains(mimeType) || mimeType.isEmpty
             ? (_extensionMimes[resolvedExtension] ?? mimeType)
             : mimeType,
-        kind: _kindOf(resolvedExtension),
+        kind: kind,
+        savedToPhotos: savedToPhotos,
       );
     } catch (error, stackTrace) {
       await sink?.close();

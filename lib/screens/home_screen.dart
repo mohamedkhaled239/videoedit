@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/projects_provider.dart';
 import '../providers/app_config_provider.dart';
 import '../providers/video_editor_provider.dart';
+import '../services/ad_service.dart';
 import '../utils/app_colors.dart';
 import '../utils/export_sharing.dart';
 import 'audio_mix_screen.dart';
@@ -132,6 +133,14 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 
+  void _openPreviewWithAd(String videoPath) {
+    AdService.showInterstitialAd(
+      onAdDismissed: () {
+        if (mounted) _open(PlayerScreen(videoPath: videoPath));
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final editor = context.watch<VideoEditorProvider>();
@@ -158,12 +167,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPick: _pickVideo,
                     onPreview: editor.videoPath == null
                         ? null
-                        : () => _open(
-                            PlayerScreen(
-                              videoPath:
-                                  editor.processedVideoPath ??
-                                  editor.videoPath!,
-                            ),
+                        : () => _openPreviewWithAd(
+                            editor.processedVideoPath ?? editor.videoPath!,
                           ),
                   ),
                   const SizedBox(height: 20),
@@ -179,12 +184,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         : _shareCurrentVideo,
                     onPreview: editor.videoPath == null
                         ? null
-                        : () => _open(
-                            PlayerScreen(
-                              videoPath:
-                                  editor.processedVideoPath ??
-                                  editor.videoPath!,
-                            ),
+                        : () => _openPreviewWithAd(
+                            editor.processedVideoPath ?? editor.videoPath!,
                           ),
                   ),
                   const SizedBox(height: 22),
@@ -314,7 +315,7 @@ class _Header extends StatelessWidget {
                   TextSpan(text: 'ستوديو المونتاج '),
                   TextSpan(
                     text: 'الذكي',
-                    style: TextStyle(color: AppColors.primaryLight),
+                    style: TextStyle(color: AppColors.primary),
                   ),
                 ],
               ),
@@ -386,16 +387,25 @@ class _HeroCard extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/editor_hero.png', fit: BoxFit.cover),
+          ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              AppColors.primary,
+              BlendMode.hue,
+            ),
+            child: Image.asset(
+              'assets/images/editor_hero.png',
+              fit: BoxFit.cover,
+            ),
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.centerRight,
                 end: Alignment.centerLeft,
                 colors: [
-                  Color(0x160B0D12),
-                  Color(0xC5120D24),
-                  Color(0xF20B0D12),
+                  Color(0x0012ADB6),
+                  Color(0xDDF1FBFC),
+                  Color(0xFFF7FCFC),
                 ],
               ),
             ),
@@ -415,7 +425,7 @@ class _HeroCard extends StatelessWidget {
                           ? 'ابدأ مشروعك الإبداعي'
                           : 'مشروعك جاهز للتحرير',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
@@ -427,7 +437,7 @@ class _HeroCard extends StatelessWidget {
                           : 'شغّل المعاينة أو اختر أداة من الأسفل',
                       maxLines: 2,
                       style: const TextStyle(
-                        color: Color(0xFFC7C3D2),
+                        color: AppColors.textSecondary,
                         fontSize: 10.5,
                         height: 1.35,
                       ),
@@ -493,63 +503,63 @@ class _ToolsGrid extends StatelessWidget {
       Icons.high_quality_rounded,
       'تحسين الجودة',
       'دقة أعلى ووضوح',
-      Color(0xFFB75CFF),
+      AppColors.primary,
     ),
     (
       'speed',
       Icons.speed_rounded,
       'تغيير السرعة',
       'بطيء / سريع',
-      Color(0xFF49E1C0),
+      AppColors.primary,
     ),
     (
       'crop',
       Icons.crop_rounded,
       'اقتصاص',
       'تغيير نسبة الأبعاد',
-      Color(0xFF45CFF2),
+      AppColors.primary,
     ),
     (
       'trim',
       Icons.content_cut_rounded,
       'قص الفيديو',
       'اقتطاع وإزالة أجزاء',
-      Color(0xFFFF963D),
+      AppColors.primary,
     ),
     (
       'mute',
       Icons.volume_off_rounded,
       'كتم الصوت',
       'حذف صوت الفيديو',
-      Color(0xFFFF5FA2),
+      AppColors.primary,
     ),
     (
       'audio',
       Icons.music_note_rounded,
       'الصوت والموسيقى',
       'مستوى وصوت خلفي',
-      Color(0xFF9B6BFF),
+      AppColors.primary,
     ),
     (
       'merge',
       Icons.video_library_rounded,
       'دمج المقاطع',
       'جمع عدة فيديوهات',
-      Color(0xFF7D62FF),
+      AppColors.primary,
     ),
     (
       'flip',
       Icons.flip_rounded,
       'قلب الفيديو',
       'أفقي أو رأسي',
-      Color(0xFFEA5DCC),
+      AppColors.primary,
     ),
     (
       'rotate',
       Icons.rotate_90_degrees_cw_rounded,
       'تدوير',
       '90° أو 180°',
-      Color(0xFFB96CFF),
+      AppColors.primary,
     ),
   ];
 
@@ -578,7 +588,7 @@ class _ToolsGrid extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.border),
               gradient: const LinearGradient(
-                colors: [Color(0xFF18202B), Color(0xFF111720)],
+                colors: [Color(0xFFFFFFFF), Color(0xFFF5FBFC)],
                 begin: Alignment.topRight,
                 end: Alignment.bottomLeft,
               ),

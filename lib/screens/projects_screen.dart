@@ -1,17 +1,64 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 
 import '../models/video_project.dart';
 import '../providers/projects_provider.dart';
 import '../providers/video_editor_provider.dart';
+import '../services/ad_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/native_ad_factory.dart';
 import 'player_screen.dart';
 
-class ProjectsScreen extends StatelessWidget {
+class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key, required this.onBackHome});
   final VoidCallback onBackHome;
+
+  @override
+  State<ProjectsScreen> createState() => _ProjectsScreenState();
+}
+
+class _ProjectsScreenState extends State<ProjectsScreen> {
+  NativeAd? _nativeAd;
+  bool _nativeAdReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNativeAd();
+  }
+
+  Future<void> _loadNativeAd() async {
+    await AdService.initialize();
+    if (!mounted || !AdService.canLoadAds || _nativeAd != null) return;
+
+    late final NativeAd ad;
+    ad = NativeAdHelper.createNativeAd(
+      adUnitId: AdService.nativeAdUnitId,
+      onAdLoaded: (_) {
+        if (!mounted) {
+          ad.dispose();
+          return;
+        }
+        setState(() => _nativeAdReady = true);
+      },
+      onAdFailedToLoad: (_, error) {
+        debugPrint('Projects native ad failed: ${error.message}');
+        ad.dispose();
+        if (identical(_nativeAd, ad)) _nativeAd = null;
+      },
+    );
+    _nativeAd = ad;
+    await ad.load();
+  }
+
+  @override
+  void dispose() {
+    _nativeAd?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +77,7 @@ class ProjectsScreen extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: onBackHome,
+                      onPressed: widget.onBackHome,
                       icon: const Icon(Icons.arrow_forward_rounded),
                     ),
                     const SizedBox(width: 8),
@@ -48,7 +95,11 @@ class ProjectsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                if (_nativeAdReady && _nativeAd != null) ...[
+                  const SizedBox(height: 12),
+                  NativeAdWidget(nativeAd: _nativeAd!, height: 105),
+                ],
+                const SizedBox(height: 16),
                 Expanded(
                   child: provider.projects.isEmpty
                       ? const Center(
@@ -115,11 +166,16 @@ class _ProjectCard extends StatelessWidget {
         if (!context.mounted) return;
         await context.read<VideoEditorProvider>().loadVideo(project.videoPath);
         if (!context.mounted) return;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PlayerScreen(videoPath: project.videoPath),
-          ),
+        AdService.showInterstitialAd(
+          onAdDismissed: () {
+            if (!context.mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerScreen(videoPath: project.videoPath),
+              ),
+            );
+          },
         );
       },
       child: Column(

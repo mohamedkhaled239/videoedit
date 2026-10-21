@@ -5,11 +5,12 @@ import '../utils/app_colors.dart';
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData dark() {
-    const scheme = ColorScheme.dark(
+  static ThemeData light() {
+    const scheme = ColorScheme.light(
       primary: AppColors.primary,
       onPrimary: Colors.white,
       secondary: AppColors.primaryLight,
+      onSecondary: Colors.white,
       surface: AppColors.surface,
       onSurface: AppColors.textPrimary,
       error: AppColors.error,
@@ -17,7 +18,7 @@ class AppTheme {
     );
 
     final base = ThemeData(
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.background,
@@ -90,7 +91,7 @@ class AppTheme {
         activeTrackColor: AppColors.primary,
         inactiveTrackColor: AppColors.border,
         thumbColor: AppColors.primaryLight,
-        overlayColor: Color(0x338B5CF6),
+        overlayColor: Color(0x3312ADB6),
         showValueIndicator: ShowValueIndicator.onlyForDiscrete,
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
