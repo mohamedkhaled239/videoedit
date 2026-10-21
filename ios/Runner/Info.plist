@@ -33,6 +33,8 @@
 	<string>نستخدم الكاميرا لتسجيل فيديو جديد تختار تحريره.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>نستخدم الميكروفون لتسجيل الصوت مع الفيديو الذي تصوره.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>نحتاج الوصول إلى مكتبة الموسيقى لاختيار مقطع صوتي وإضافته إلى الفيديو.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>نحتاج الوصول إلى الفيديوهات التي تختارها للتحرير.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
