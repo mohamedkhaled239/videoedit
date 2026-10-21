@@ -16,6 +16,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static const _supportUrl = 'https://3reeb.com';
+  static const _marketingUrl = 'https://3reeb.com/app-ads.txt';
+
   /* Disabled for production. Keep this helper commented so it can be restored
      during internal QA without exposing notification diagnostics to users.
   Future<void> _testNotifications() async {
@@ -618,6 +621,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _showPrivacyDialog,
                 ),
                 SettingsItem(
+                  icon: Icons.support_agent_outlined,
+                  title: AppLocalizations.of(context)!.supportUrl,
+                  subtitle: _supportUrl,
+                  onTap: () => _openUrl(_supportUrl),
+                ),
+                SettingsItem(
+                  icon: Icons.campaign_outlined,
+                  title: AppLocalizations.of(context)!.marketingUrl,
+                  subtitle: _marketingUrl,
+                  onTap: () => _openUrl(_marketingUrl),
+                ),
+                SettingsItem(
                   icon: Icons.copyright_outlined,
                   title: AppLocalizations.of(context)!.copyrights,
                   onTap: _showCopyrightsDialog,
@@ -639,12 +654,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class SettingsItem extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback? onTap;
 
   const SettingsItem({
     super.key,
     required this.icon,
     required this.title,
+    this.subtitle,
     this.onTap,
   });
 
@@ -659,15 +676,37 @@ class SettingsItem extends StatelessWidget {
             Icon(icon, color: AppColors.primary),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle!,
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+            if (onTap != null && subtitle != null)
+              const Icon(
+                Icons.open_in_new_rounded,
+                size: 17,
+                color: AppColors.textSecondary,
+              ),
           ],
         ),
       ),

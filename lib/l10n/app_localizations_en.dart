@@ -102,7 +102,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'We may update this policy from time to time. Please review it regularly.';
   String get agree => 'Agree';
   String get copyrights => 'Copyrights';
-  String get appCopyright => '© 2026 Video Editing App';
+  String get appCopyright => 'Copyright 3reeb@2026';
+  String get supportUrl => 'Support URL';
+  String get marketingUrl => 'Marketing URL';
   String get allRightsReserved => 'All rights reserved';
   String get license => 'License';
   String get licenseDescription =>

@@ -100,6 +100,8 @@ abstract class AppLocalizations {
   String get agree;
   String get copyrights;
   String get appCopyright;
+  String get supportUrl;
+  String get marketingUrl;
   String get allRightsReserved;
   String get license;
   String get licenseDescription;

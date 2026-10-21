@@ -100,7 +100,9 @@ class AppLocalizationsAr extends AppLocalizations {
       'قد نحدث هذه السياسة من وقت لآخر. يرجى مراجعتها بانتظام.';
   String get agree => 'أوافق';
   String get copyrights => 'حقوق النشر';
-  String get appCopyright => '© 2026 تطبيق تحرير الفيديو';
+  String get appCopyright => 'Copyright 3reeb@2026';
+  String get supportUrl => 'رابط الدعم';
+  String get marketingUrl => 'رابط التسويق';
   String get allRightsReserved => 'جميع الحقوق محفوظة';
   String get license => 'الترخيص';
   String get licenseDescription =>
