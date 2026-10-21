@@ -155,8 +155,9 @@ import AVFoundation
     }
     exportSession.outputURL = outputUrl
     exportSession.outputFileType = .mp4
-    exportSession.audioMix = AVMutableAudioMix()
-    exportSession.audioMix?.inputParameters = audioParameters
+    let audioMix = AVMutableAudioMix()
+    audioMix.inputParameters = audioParameters
+    exportSession.audioMix = audioMix
     exportSession.shouldOptimizeForNetworkUse = true
     exportSession.exportAsynchronously {
       DispatchQueue.main.async {
