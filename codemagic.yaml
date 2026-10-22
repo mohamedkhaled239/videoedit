@@ -88,7 +88,6 @@ workflows:
           flutter build ipa --release \
             --build-name="$(grep '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1)" \
             --build-number="$BUILD_NUMBER" \
-            --dart-define=FCM_DIAGNOSTICS=true \
             --export-options-plist=/Users/builder/export_options.plist
 
       - name: Verify signed push entitlement

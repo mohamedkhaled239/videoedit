@@ -606,18 +606,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: AppLocalizations.of(context)!.language,
                   onTap: _showLanguageDialog,
                 ),
-                if (fcmDiagnosticsEnabled)
-                  SettingsItem(
-                    icon: Icons.bug_report_outlined,
-                    title: 'تشخيص إشعارات FCM',
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const FcmDiagnosticsScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                SettingsItem(
+                  icon: Icons.bug_report_outlined,
+                  title: 'تشخيص إشعارات FCM',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const FcmDiagnosticsScreen(),
+                      ),
+                    );
+                  },
+                ),
                 SettingsItem(
                   icon: Icons.report_problem_outlined,
                   title: AppLocalizations.of(context)!.reportAProblem,

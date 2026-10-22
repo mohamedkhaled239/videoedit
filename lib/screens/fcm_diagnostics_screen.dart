@@ -9,11 +9,6 @@ import 'package:flutter/services.dart';
 import '../services/notification_service.dart';
 import '../utils/app_colors.dart';
 
-/// Enabled for local debug builds and for temporary internal/TestFlight builds
-/// created with --dart-define=FCM_DIAGNOSTICS=true.
-const bool fcmDiagnosticsEnabled =
-    kDebugMode || bool.fromEnvironment('FCM_DIAGNOSTICS');
-
 class FcmDiagnosticsScreen extends StatefulWidget {
   const FcmDiagnosticsScreen({super.key});
 
@@ -47,10 +42,6 @@ class _FcmDiagnosticsScreenState extends State<FcmDiagnosticsScreen> {
   @override
   void initState() {
     super.initState();
-    assert(
-      fcmDiagnosticsEnabled,
-      'FCM diagnostics are not enabled for this build.',
-    );
     unawaited(_loadStatus());
   }
 
@@ -160,8 +151,6 @@ class _FcmDiagnosticsScreenState extends State<FcmDiagnosticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!fcmDiagnosticsEnabled) return const SizedBox.shrink();
-
     final options = _firebaseOptions;
     return Scaffold(
       backgroundColor: AppColors.background,
