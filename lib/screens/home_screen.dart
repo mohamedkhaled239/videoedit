@@ -901,12 +901,12 @@ class _DownloadCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'تنزيل الملفات بسهولة',
+                'تنزيل الفيديوهات بسهولة',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
               SizedBox(height: 4),
               Text(
-                'الصور، الفيديوهات، المستندات والملفات المدعومة',
+                'نزّل الفيديوهات من الروابط والمنصات المدعومة',
                 style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 10.5,
@@ -919,7 +919,7 @@ class _DownloadCard extends StatelessWidget {
         FilledButton.icon(
           onPressed: onTap,
           icon: const Icon(Icons.download_rounded),
-          label: const Text('تنزيل ملف'),
+          label: const Text('تنزيل فيديو'),
         ),
       ],
     ),

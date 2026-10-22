@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-// import 'package:flutter/services.dart'; // Notification test only.
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:videoedit/utils/app_colors.dart';
@@ -15,9 +14,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _supportUrl = 'https://3reeb.com';
-  static const _marketingUrl = 'https://3reeb.com/app-ads.txt';
-
   void _showLanguageDialog() {
     final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
 
@@ -551,18 +547,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.privacy_tip_outlined,
                   title: AppLocalizations.of(context)!.privacyPolicyTitle,
                   onTap: _showPrivacyDialog,
-                ),
-                SettingsItem(
-                  icon: Icons.support_agent_outlined,
-                  title: AppLocalizations.of(context)!.supportUrl,
-                  subtitle: _supportUrl,
-                  onTap: () => _openUrl(_supportUrl),
-                ),
-                SettingsItem(
-                  icon: Icons.campaign_outlined,
-                  title: AppLocalizations.of(context)!.marketingUrl,
-                  subtitle: _marketingUrl,
-                  onTap: () => _openUrl(_marketingUrl),
                 ),
                 SettingsItem(
                   icon: Icons.copyright_outlined,

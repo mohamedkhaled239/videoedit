@@ -32,6 +32,7 @@ class NativeAdHelper {
     required String adUnitId,
     required void Function(Ad) onAdLoaded,
     required void Function(Ad, LoadAdError) onAdFailedToLoad,
+    TemplateType templateType = TemplateType.small,
     void Function(Ad)? onAdOpened,
     void Function(Ad)? onAdClosed,
   }) {
@@ -46,7 +47,7 @@ class NativeAdHelper {
       ),
 
       nativeTemplateStyle: NativeTemplateStyle(
-        templateType: TemplateType.small,
+        templateType: templateType,
         mainBackgroundColor: Colors.white,
         cornerRadius: 10.0,
         callToActionTextStyle: NativeTemplateTextStyle(

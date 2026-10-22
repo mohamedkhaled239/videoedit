@@ -10,13 +10,14 @@ import '../models/resolved_media.dart';
 import '../providers/document_download_provider.dart';
 import '../services/ad_service.dart';
 import '../utils/app_colors.dart';
+import '../utils/native_ad_factory.dart';
 import '../widgets/studio_brand.dart';
 
 /// Downloads direct files and resolves supported social links through RapidAPI.
 class DocumentDownloadScreen extends StatefulWidget {
   const DocumentDownloadScreen({super.key, this.activateAds = false});
 
-  // Only keep the banner alive while this tab is visible.
+  // Only keep the embedded ad alive while this tab is visible.
   final bool activateAds;
 
   @override
@@ -28,63 +29,60 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _focusNode = FocusNode();
   bool _isDownloading = false;
-  BannerAd? _bannerAd;
-  bool _bannerReady = false;
+  NativeAd? _nativeAd;
+  bool _nativeAdReady = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.activateAds) _loadBanner();
+    if (widget.activateAds) _loadNativeAd();
   }
 
   @override
   void didUpdateWidget(covariant DocumentDownloadScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.activateAds && !oldWidget.activateAds) {
-      _loadBanner();
+      _loadNativeAd();
     } else if (!widget.activateAds && oldWidget.activateAds) {
-      _disposeBanner();
+      _disposeNativeAd();
     }
   }
 
-  Future<void> _loadBanner() async {
-    if (_bannerAd != null) return;
+  Future<void> _loadNativeAd() async {
+    if (_nativeAd != null) return;
     await AdService.initialize();
     if (!mounted || !widget.activateAds || !AdService.canLoadAds) return;
 
-    late final BannerAd ad;
-    ad = BannerAd(
-      adUnitId: AdService.bannerAdUnitId,
-      request: const AdRequest(),
-      size: AdSize.banner,
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (!mounted || !widget.activateAds) {
-            ad.dispose();
-            return;
-          }
-          setState(() => _bannerReady = true);
-        },
-        onAdFailedToLoad: (_, error) {
-          debugPrint('File manager banner failed: ${error.message}');
+    late final NativeAd ad;
+    ad = NativeAdHelper.createNativeAd(
+      adUnitId: AdService.nativeAdUnitId,
+      templateType: TemplateType.medium,
+      onAdLoaded: (_) {
+        if (!mounted || !widget.activateAds) {
           ad.dispose();
-          if (identical(_bannerAd, ad)) _bannerAd = null;
-        },
-      ),
+          return;
+        }
+        setState(() => _nativeAdReady = true);
+      },
+      onAdFailedToLoad: (_, error) {
+        debugPrint('Video downloader native ad failed: ${error.message}');
+        ad.dispose();
+        if (identical(_nativeAd, ad)) _nativeAd = null;
+      },
     );
-    _bannerAd = ad;
+    _nativeAd = ad;
     await ad.load();
   }
 
-  void _disposeBanner() {
-    _bannerAd?.dispose();
-    _bannerAd = null;
-    _bannerReady = false;
+  void _disposeNativeAd() {
+    _nativeAd?.dispose();
+    _nativeAd = null;
+    _nativeAdReady = false;
   }
 
   @override
   void dispose() {
-    _disposeBanner();
+    _disposeNativeAd();
     _urlController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -103,6 +101,15 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
     _focusNode.unfocus();
     setState(() => _isDownloading = true);
 
+    AdService.showInterstitialAd(
+      onAdDismissed: () {
+        if (mounted) unawaited(_resolveAndChooseMedia());
+      },
+    );
+  }
+
+  Future<void> _resolveAndChooseMedia() async {
+    if (!mounted) return;
     final provider = context.read<DocumentDownloadProvider>();
     final options = await provider.resolveMedia(_urlController.text);
     if (!mounted) return;
@@ -123,12 +130,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
       setState(() => _isDownloading = false);
       return;
     }
-
-    AdService.showInterstitialAd(
-      onAdDismissed: () {
-        if (mounted) unawaited(_downloadValidatedFile(selected));
-      },
-    );
+    unawaited(_downloadValidatedFile(selected));
   }
 
   Future<ResolvedMedia?> _chooseMedia(List<ResolvedMedia> options) {
@@ -250,7 +252,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
               return SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(
                   isTablet ? 32 : 20,
-                  18,
+                  6,
                   isTablet ? 32 : 20,
                   124,
                 ),
@@ -259,39 +261,12 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
                     constraints: BoxConstraints(maxWidth: isTablet ? 760 : 610),
                     child: Column(
                       children: [
-                        const StudioAppBar(
-                          icon: Icons.download_for_offline_outlined,
-                        ),
-                        const SizedBox(height: 24),
-                        // const _DownloadStatus(),
-                        const SizedBox(height: 18),
-                        const Text(
-                          'تنزيل الملفات بسهولة وأمان',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 29,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'الصق رابط ملف مباشر أو رابط فيديو من منصة اجتماعية',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 13,
-                            height: 1.6,
-                          ),
-                        ),
-                        const SizedBox(height: 26),
                         _buildDownloadCard(provider),
-                        if (_bannerReady && _bannerAd != null) ...[
+                        if (_nativeAdReady && _nativeAd != null) ...[
                           const SizedBox(height: 18),
-                          SizedBox(
-                            width: _bannerAd!.size.width.toDouble(),
-                            height: _bannerAd!.size.height.toDouble(),
-                            child: AdWidget(ad: _bannerAd!),
+                          NativeAdWidget(
+                            nativeAd: _nativeAd!,
+                            height: 320,
                           ),
                         ],
                       ],
@@ -321,7 +296,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'رابط الملف أو المنشور',
+              'رابط الفيديو أو المنشور',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,
@@ -337,7 +312,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
               onChanged: (_) => setState(() {}),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'ألصق رابط الملف أولًا';
+                  return 'ألصق رابط الفيديو أولًا';
                 }
                 if (provider.extractUrl(value) == null) {
                   return 'أدخل رابطًا صحيحًا أو نصًا يحتوي على رابط';
@@ -387,8 +362,8 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
               label: provider.isResolving
                   ? 'جاري قراءة الرابط'
                   : _isDownloading
-                  ? 'جاري تنزيل الملف'
-                  : 'تنزيل الملف',
+                  ? 'جاري تنزيل الفيديو'
+                  : 'تنزيل الفيديو',
               icon: Icons.download_for_offline_outlined,
               onPressed: _startDownload,
               busy: _isDownloading,
@@ -398,7 +373,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
               TextButton.icon(
                 onPressed: _openDownloadedFile,
                 icon: const Icon(Icons.open_in_new),
-                label: const Text('فتح آخر ملف تم تنزيله'),
+                label: const Text('فتح آخر فيديو تم تنزيله'),
               ),
             ],
           ],

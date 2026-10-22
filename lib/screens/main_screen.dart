@@ -164,7 +164,7 @@ class _StudioNavigationBar extends StatelessWidget {
           children: [
             _item(0, 'الرئيسية', Icons.home_rounded),
             if (downloadEnabled)
-              _item(1, 'الملفات', Icons.cloud_download_outlined),
+              _item(1, 'الفيديوهات', Icons.cloud_download_outlined),
             Expanded(
               child: Center(
                 child: Transform.translate(

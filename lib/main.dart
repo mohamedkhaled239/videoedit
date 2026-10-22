@@ -9,7 +9,7 @@ import 'package:videoedit/providers/app_config_provider.dart';
 import 'package:videoedit/providers/document_download_provider.dart';
 import 'package:videoedit/providers/locale_provider.dart';
 import 'package:videoedit/providers/projects_provider.dart';
-import 'package:videoedit/screens/main_screen.dart';
+import 'package:videoedit/screens/splash_screen.dart';
 import 'package:videoedit/services/ad_service.dart';
 import 'package:videoedit/theme/app_theme.dart';
 
@@ -112,7 +112,7 @@ class _MyAppState extends State<MyApp> {
             supportedLocales: const [Locale('en'), Locale('ar')],
             locale: localeProvider.locale,
             theme: AppTheme.light(),
-            home: const MainScreen(),
+            home: const SplashScreen(),
           );
         },
       ),
