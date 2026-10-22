@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
@@ -9,7 +8,10 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-enum DownloadedFileKind { document, audio, video }
+import '../models/app_config.dart';
+import '../models/resolved_media.dart';
+
+enum DownloadedFileKind { document, image, audio, video }
 
 class DownloadedDocument {
   const DownloadedDocument({
@@ -27,21 +29,16 @@ class DownloadedDocument {
   final bool savedToPhotos;
 }
 
-/// نتيجة استخراج رابط الفيديو الفعلي من صفحة ويب.
-class _ResolvedMedia {
-  const _ResolvedMedia(this.response, this.uri);
-
-  final http.StreamedResponse response;
-  final Uri uri;
-}
-
 class DocumentDownloadProvider extends ChangeNotifier {
   DocumentDownloadProvider({
     http.Client Function()? clientFactory,
     Future<Directory> Function()? documentsDirectoryProvider,
+    Future<Directory> Function()? temporaryDirectoryProvider,
   }) : _clientFactory = clientFactory ?? http.Client.new,
        _documentsDirectoryProvider =
-           documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
+           documentsDirectoryProvider ?? getApplicationSupportDirectory,
+       _temporaryDirectoryProvider =
+           temporaryDirectoryProvider ?? getTemporaryDirectory;
 
   static const Duration _networkTimeout = Duration(seconds: 20);
 
@@ -54,11 +51,13 @@ class DocumentDownloadProvider extends ChangeNotifier {
   static const String _browserUserAgent =
       'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
-  static const int _maxHtmlBytes = 3 * 1024 * 1024; // 3 MB للصفحة فقط
-  static const int _maxCandidates = 8;
 
   static const String _offlineMessage =
       'لا يوجد اتصال بالإنترنت. تأكد من الشبكة ثم حاول مرة أخرى.';
+  static const String _resolverNotConfiguredMessage =
+      'هذا ليس رابط ملف مباشر، وخدمة روابط السوشيال غير مهيأة حاليًا.';
+  static const String _resolverFailedMessage =
+      'تعذر قراءة رابط السوشيال. تأكد أن الرابط عام ثم حاول مرة أخرى.';
 
   static const Map<String, String> _mimeExtensions = {
     // Documents
@@ -80,6 +79,13 @@ class DocumentDownloadProvider extends ChangeNotifier {
     'application/vnd.oasis.opendocument.text': 'odt',
     'application/vnd.oasis.opendocument.spreadsheet': 'ods',
     'application/vnd.oasis.opendocument.presentation': 'odp',
+
+    // Images
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/heic': 'heic',
+    'image/heif': 'heic',
+    'image/gif': 'gif',
 
     // Audio
     'audio/mpeg': 'mp3',
@@ -148,6 +154,14 @@ class DocumentDownloadProvider extends ChangeNotifier {
     'flac',
   };
 
+  static const Set<String> _imageExtensions = {
+    'jpg',
+    'jpeg',
+    'png',
+    'heic',
+    'gif',
+  };
+
   static const Set<String> _videoExtensions = {
     'mp4',
     'm4v',
@@ -161,12 +175,15 @@ class DocumentDownloadProvider extends ChangeNotifier {
 
   static final Set<String> _supportedExtensions = {
     ..._documentExtensions,
+    ..._imageExtensions,
     ..._audioExtensions,
     ..._videoExtensions,
   };
 
   final http.Client Function() _clientFactory;
   final Future<Directory> Function() _documentsDirectoryProvider;
+  final Future<Directory> Function() _temporaryDirectoryProvider;
+  AppConfig _config = AppConfig.defaultConfig();
 
   bool _isDownloading = false;
   double _downloadProgress = 0;
@@ -177,6 +194,11 @@ class DocumentDownloadProvider extends ChangeNotifier {
   double get downloadProgress => _downloadProgress;
   String? get errorMessage => _errorMessage;
   String? get downloadedFilePath => _downloadedFilePath;
+
+  bool _isResolving = false;
+  bool get isResolving => _isResolving;
+
+  void updateConfig(AppConfig config) => _config = config;
 
   bool _isNetworkError(Object error) {
     return error is SocketException ||
@@ -190,6 +212,7 @@ class DocumentDownloadProvider extends ChangeNotifier {
   }
 
   DownloadedFileKind _kindOf(String extension) {
+    if (_imageExtensions.contains(extension)) return DownloadedFileKind.image;
     if (_audioExtensions.contains(extension)) return DownloadedFileKind.audio;
     if (_videoExtensions.contains(extension)) return DownloadedFileKind.video;
     return DownloadedFileKind.document;
@@ -201,6 +224,7 @@ class DocumentDownloadProvider extends ChangeNotifier {
         return _maxAudioSize;
       case DownloadedFileKind.video:
         return _maxVideoSize;
+      case DownloadedFileKind.image:
       case DownloadedFileKind.document:
         return _maxDocumentSize;
     }
@@ -239,8 +263,147 @@ class DocumentDownloadProvider extends ChangeNotifier {
     ).firstMatch(value)?.group(1)?.trim();
   }
 
+  Uri? extractUrl(String input) {
+    final tokens = input.trim().split(RegExp(r'\s+'));
+    if (tokens.isEmpty) return null;
+
+    String? candidate;
+    for (final token in tokens) {
+      final schemeIndex = token.indexOf(RegExp(r'https?://'));
+      if (schemeIndex >= 0) {
+        candidate = token.substring(schemeIndex);
+        break;
+      }
+    }
+    candidate ??= tokens.first.contains('.') ? 'https://${tokens.first}' : null;
+    if (candidate == null) return null;
+
+    candidate = candidate.replaceAll(
+      RegExp(r'''^[\(\[\{<'"]+|[\)\]\}>'".,;:!?،؛؟]+$'''),
+      '',
+    );
+    final uri = Uri.tryParse(candidate);
+    if (uri == null ||
+        !const {'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
+        uri.host.isEmpty) {
+      return null;
+    }
+    return uri;
+  }
+
+  bool _isDirectUri(Uri uri) =>
+      _supportedExtensions.contains(_extensionOf(uri.path));
+
+  String _kindLabel(String extension) => switch (_kindOf(extension)) {
+    DownloadedFileKind.video => 'Video',
+    DownloadedFileKind.audio => 'Audio',
+    DownloadedFileKind.image => 'Image',
+    DownloadedFileKind.document => 'File',
+  };
+
+  Uri _resolverUri() {
+    final base = Uri.parse(_config.rapidApiBaseUrl!);
+    final path = base.path.replaceAll(RegExp(r'/+$'), '');
+    return base.replace(path: '$path/v1/social/autolink');
+  }
+
+  /// Returns one direct option, or resolves a social page through RapidAPI.
+  Future<List<ResolvedMedia>?> resolveMedia(String input) async {
+    final uri = extractUrl(input);
+    if (uri == null) {
+      _errorMessage = 'أدخل رابطًا صحيحًا أو نصًا يحتوي على رابط.';
+      notifyListeners();
+      return null;
+    }
+
+    if (_isDirectUri(uri)) {
+      final extension = _extensionOf(uri.path);
+      return [
+        ResolvedMedia(
+          label: _kindLabel(extension),
+          url: uri,
+          kind: _kindLabel(extension).toLowerCase(),
+          fileExtension: extension,
+        ),
+      ];
+    }
+    if (!_config.resolverEnabled) {
+      _errorMessage = _resolverNotConfiguredMessage;
+      notifyListeners();
+      return null;
+    }
+
+    http.Client? client;
+    _isResolving = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      client = _clientFactory();
+      final response = await client
+          .post(
+            _resolverUri(),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-rapidapi-key': _config.rapidApiKey!,
+              'x-rapidapi-host': _config.rapidApiHost!,
+            },
+            body: jsonEncode({'url': uri.toString()}),
+          )
+          .timeout(_networkTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          _errorMessage = 'بيانات خدمة التنزيل غير صالحة.';
+        } else if (response.statusCode == 429) {
+          _errorMessage = 'تم تجاوز حد الطلبات. حاول لاحقًا.';
+        } else {
+          _errorMessage = _resolverFailedMessage;
+        }
+        return null;
+      }
+
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic> || decoded['error'] == true) {
+        throw const FormatException('Resolver returned an error');
+      }
+      final thumbnailValue = decoded['thumbnail'];
+      final thumbnail = thumbnailValue is String
+          ? Uri.tryParse(thumbnailValue)
+          : null;
+      final rawMedias = decoded['medias'];
+      if (rawMedias is! List) throw const FormatException('Missing medias');
+
+      final medias = <ResolvedMedia>[];
+      for (final item in rawMedias) {
+        if (item is! Map) continue;
+        try {
+          medias.add(
+            ResolvedMedia.fromJson(
+              Map<String, dynamic>.from(item),
+              thumbnail: thumbnail,
+            ),
+          );
+        } on FormatException {
+          // Ignore only the malformed option; other qualities can still work.
+        }
+      }
+      if (medias.isEmpty) throw const FormatException('No valid media');
+      return medias;
+    } catch (error, stackTrace) {
+      _errorMessage = _isNetworkError(error)
+          ? _offlineMessage
+          : _resolverFailedMessage;
+      debugPrint('Resolving social URL failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    } finally {
+      client?.close();
+      _isResolving = false;
+      notifyListeners();
+    }
+  }
+
   // ---------------------------------------------------------------------------
-  // دعم روابط صفحات الفيديو
+  // دعم روابط صفحات الفيديو (مثل تيك توك)
   // ---------------------------------------------------------------------------
 
   /// يرسل طلب GET بهيدرز شبيهة بالمتصفح (User-Agent / Referer / Cookie).
@@ -249,6 +412,8 @@ class DocumentDownloadProvider extends ChangeNotifier {
     Uri uri, {
     Uri? referer,
     String? cookie,
+    Map<String, String>? extraHeaders,
+    Duration? timeout,
   }) {
     final request = http.Request('GET', uri)
       ..headers['User-Agent'] = _browserUserAgent
@@ -258,7 +423,8 @@ class DocumentDownloadProvider extends ChangeNotifier {
     if (cookie != null && cookie.isNotEmpty) {
       request.headers['Cookie'] = cookie;
     }
-    return client.send(request).timeout(_networkTimeout);
+    if (extraHeaders != null) request.headers.addAll(extraHeaders);
+    return client.send(request).timeout(timeout ?? _networkTimeout);
   }
 
   String _mimeOf(http.StreamedResponse response) =>
@@ -270,135 +436,6 @@ class DocumentDownloadProvider extends ChangeNotifier {
 
   bool _isHtmlMime(String mime) =>
       mime == 'text/html' || mime == 'application/xhtml+xml';
-
-  /// اسم الملف من آخر جزء في مسار الصفحة (غالبًا id الفيديو).
-  String _pageBaseName(Uri pageUri) {
-    final segments = pageUri.pathSegments.where((s) => s.isNotEmpty);
-    return segments.isEmpty ? 'video' : segments.last;
-  }
-
-  /// يحوّل هيدر set-cookie إلى هيدر Cookie صالح للطلب التالي.
-  String? _cookieHeaderFrom(String? setCookie) {
-    if (setCookie == null || setCookie.isEmpty) return null;
-    final pairs = RegExp(
-      r'(?:^|,\s*)([A-Za-z0-9_\-.]+=[^;,]*)',
-    ).allMatches(setCookie).map((m) => m.group(1)!).toList();
-    return pairs.isEmpty ? null : pairs.join('; ');
-  }
-
-  Future<String> _readLimitedText(Stream<List<int>> stream) async {
-    final bytes = BytesBuilder(copy: false);
-    await for (final chunk in stream) {
-      bytes.add(chunk);
-      if (bytes.length > _maxHtmlBytes) break;
-    }
-    return utf8.decode(bytes.takeBytes(), allowMalformed: true);
-  }
-
-  String? _decodeJsonString(String value) {
-    try {
-      return jsonDecode('"$value"') as String;
-    } catch (_) {
-      return value.replaceAll(r'\u002F', '/').replaceAll(r'\/', '/');
-    }
-  }
-
-  /// يطلّع روابط الفيديو المحتملة من الصفحة بترتيب الأفضلية.
-  List<Uri> _extractMediaUris(String html, Uri pageUri) {
-    final raw = <String>[];
-
-    // 1) meta tags (og:video ...)
-    const metaKeys = {
-      'og:video',
-      'og:video:url',
-      'og:video:secure_url',
-      'twitter:player:stream',
-    };
-    for (final tag in RegExp(
-      r'<meta\b[^>]*>',
-      caseSensitive: false,
-    ).allMatches(html)) {
-      final text = tag.group(0)!;
-      final key = RegExp(
-        r'''(?:property|name)\s*=\s*["']([^"']+)["']''',
-        caseSensitive: false,
-      ).firstMatch(text)?.group(1)?.toLowerCase();
-      if (key == null || !metaKeys.contains(key)) continue;
-      final content = RegExp(
-        r'''content\s*=\s*["']([^"']+)["']''',
-        caseSensitive: false,
-      ).firstMatch(text)?.group(1);
-      if (content != null) raw.add(content.replaceAll('&amp;', '&'));
-    }
-
-    // 2) JSON مدمج في الصفحة (JSON-LD / hydration data).
-    final jsonPatterns = [
-      RegExp(
-        r'"(?:downloadAddr|playAddr|playUrl|contentUrl|videoUrl|video_url)"'
-        r'\s*:\s*"((?:[^"\\]|\\.)*)"',
-      ),
-      RegExp(r'"(?:UrlList|urlList|url_list)"\s*:\s*\[\s*"((?:[^"\\]|\\.)*)"'),
-    ];
-    for (final pattern in jsonPatterns) {
-      for (final m in pattern.allMatches(html)) {
-        final decoded = _decodeJsonString(m.group(1)!);
-        if (decoded != null) raw.add(decoded);
-      }
-    }
-
-    // 3) <video src> / <source src>
-    for (final m in RegExp(
-      r'''<(?:video|source)\b[^>]*\bsrc\s*=\s*["']([^"']+)["']''',
-      caseSensitive: false,
-    ).allMatches(html)) {
-      raw.add(m.group(1)!.replaceAll('&amp;', '&'));
-    }
-
-    final result = <Uri>[];
-    final seen = <String>{};
-    for (final item in raw) {
-      final parsed = Uri.tryParse(item.trim());
-      if (parsed == null) continue;
-      final absolute = pageUri.resolveUri(parsed);
-      if (!const {'http', 'https'}.contains(absolute.scheme) ||
-          absolute.host.isEmpty) {
-        continue;
-      }
-      if (seen.add(absolute.toString())) result.add(absolute);
-      if (result.length >= _maxCandidates) break;
-    }
-    return result;
-  }
-
-  /// يقرأ صفحة HTML ويجرّب روابط الفيديو المستخرجة منها حتى ينجح أحدها.
-  Future<_ResolvedMedia> _resolveFromPage(
-    http.Client client,
-    Uri pageUri,
-    http.StreamedResponse pageResponse,
-  ) async {
-    final cookie = _cookieHeaderFrom(pageResponse.headers['set-cookie']);
-    final html = await _readLimitedText(pageResponse.stream);
-
-    for (final candidate in _extractMediaUris(html, pageUri)) {
-      try {
-        final response = await _send(
-          client,
-          candidate,
-          referer: pageUri,
-          cookie: cookie,
-        );
-        if (response.statusCode >= 200 &&
-            response.statusCode < 300 &&
-            !_isHtmlMime(_mimeOf(response))) {
-          return _ResolvedMedia(response, candidate);
-        }
-        await response.stream.drain<void>();
-      } catch (_) {
-        // جرّب الرابط اللي بعده.
-      }
-    }
-    throw const FormatException('No media URL found in page');
-  }
 
   // ---------------------------------------------------------------------------
   // فحص الـ signatures
@@ -439,6 +476,27 @@ class DocumentDownloadProvider extends ChangeNotifier {
       const oleSignature = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
       switch (extension) {
+        case 'jpg':
+        case 'jpeg':
+          return _startsWithBytes(bytes, const [0xFF, 0xD8, 0xFF]);
+        case 'png':
+          return _startsWithBytes(bytes, const [
+            0x89,
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A,
+          ]);
+        case 'gif':
+          return _startsWithBytes(bytes, 'GIF87a'.codeUnits) ||
+              _startsWithBytes(bytes, 'GIF89a'.codeUnits);
+        case 'heic':
+          return _hasBytesAt(bytes, 'ftypheic'.codeUnits, 4) ||
+              _hasBytesAt(bytes, 'ftypheix'.codeUnits, 4) ||
+              _hasBytesAt(bytes, 'ftypmif1'.codeUnits, 4);
         case 'pdf':
           return _startsWithBytes(bytes, const [0x25, 0x50, 0x44, 0x46]);
         case 'doc':
@@ -527,6 +585,20 @@ class DocumentDownloadProvider extends ChangeNotifier {
       if (at('RIFF', 0) && at('AVI ', 8)) return 'avi';
       if (at('OggS', 0)) return 'ogg';
       if (at('fLaC', 0)) return 'flac';
+      if (_startsWithBytes(bytes, const [0xFF, 0xD8, 0xFF])) return 'jpg';
+      if (_startsWithBytes(bytes, const [
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+      ])) {
+        return 'png';
+      }
+      if (at('GIF87a', 0) || at('GIF89a', 0)) return 'gif';
 
       if (at('ftyp', 4)) {
         if (at('M4A ', 8)) return 'm4a';
@@ -558,16 +630,17 @@ class DocumentDownloadProvider extends ChangeNotifier {
   // التحميل
   // ---------------------------------------------------------------------------
 
-  Future<DownloadedDocument?> downloadDocument(String url) async {
+  Future<DownloadedDocument?> downloadDocument(
+    String url, {
+    String? preferredExtension,
+  }) async {
     http.Client? client;
     IOSink? sink;
     File? outputFile;
 
     try {
-      final uri = Uri.tryParse(url.trim());
-      if (uri == null ||
-          !const {'http', 'https'}.contains(uri.scheme) ||
-          uri.host.isEmpty) {
+      final uri = extractUrl(url);
+      if (uri == null) {
         _errorMessage = 'أدخل رابطًا مباشرًا وصحيحًا للملف.';
         notifyListeners();
         return null;
@@ -580,40 +653,50 @@ class DocumentDownloadProvider extends ChangeNotifier {
       notifyListeners();
 
       client = _clientFactory();
-      var effectiveUri = uri;
-      var response = await _send(client, uri);
+      final effectiveUri = uri;
+      final response = await _send(client, uri);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException('HTTP ${response.statusCode}');
       }
 
-      var mimeType = _mimeOf(response);
-      String? pageBaseName;
-
-      // لو الرابط صفحة ويب (مش ملف) نطلّع منها رابط الفيديو الفعلي.
+      final mimeType = _mimeOf(response);
       if (_isHtmlMime(mimeType)) {
-        final resolved = await _resolveFromPage(client, uri, response);
-        response = resolved.response;
-        effectiveUri = resolved.uri;
-        mimeType = _mimeOf(response);
-        pageBaseName = _pageBaseName(uri); // اسم الملف من id الفيديو
+        throw const FormatException('Media URL returned HTML');
       }
 
       final dispositionName = _fileNameFromContentDisposition(
         response.headers['content-disposition'],
       );
-      final extensionSource = dispositionName?.isNotEmpty == true
+      final urlName = p.basename(effectiveUri.path);
+      final candidateName = dispositionName?.isNotEmpty == true
           ? dispositionName!
-          : p.basename(effectiveUri.path);
-      final candidateName = pageBaseName ?? extensionSource;
-      final urlExtension = _extensionOf(extensionSource);
+          : urlName;
+      final urlExtension = _extensionOf(urlName);
       final urlExtensionSupported = _supportedExtensions.contains(urlExtension);
+      final dispositionExtension = _extensionOf(dispositionName ?? '');
+      final dispositionExtensionSupported = _supportedExtensions.contains(
+        dispositionExtension,
+      );
 
-      String? extension = _mimeExtensions[mimeType];
+      final normalizedPreferred = preferredExtension
+          ?.replaceFirst(RegExp(r'^\.'), '')
+          .toLowerCase();
+      String? extension =
+          normalizedPreferred != null &&
+              _supportedExtensions.contains(normalizedPreferred)
+          ? normalizedPreferred
+          : null;
+
+      // Resolver preference wins, followed by URL/filename and then MIME.
+      extension ??= urlExtensionSupported ? urlExtension : null;
+      extension ??= dispositionExtensionSupported ? dispositionExtension : null;
+      extension ??= _mimeExtensions[mimeType];
 
       // لو الامتداد في الرابط مدعوم ونوعه (صوت/فيديو) يطابق نوع الـ MIME
       // نفضّله، لأن بعض السيرفرات ترجع MIME عام مثل audio/mp4 لملفات mp4.
-      if (extension != null &&
+      if (normalizedPreferred == null &&
+          extension != null &&
           urlExtensionSupported &&
           urlExtension != extension &&
           _kindOf(urlExtension) == _kindOf(extension) &&
@@ -669,18 +752,27 @@ class DocumentDownloadProvider extends ChangeNotifier {
 
       final documentsDirectory = await _documentsDirectoryProvider();
       final downloadDirectory = Directory(
-        p.join(documentsDirectory.path, 'Downloads'),
+        p.join(documentsDirectory.path, 'Library', 'Media'),
       );
       await downloadDirectory.create(recursive: true);
+      final temporaryDirectory = await _temporaryDirectoryProvider();
+      final workDirectory = Directory(
+        p.join(temporaryDirectory.path, 'VeloWork'),
+      );
+      await workDirectory.create(recursive: true);
 
       final safeBaseName = _sanitizeFileName(baseName);
       var fileName = '$safeBaseName.${resolvedExtension ?? 'part'}';
-      outputFile = File(p.join(downloadDirectory.path, fileName));
-      if (await outputFile.exists()) {
+      if (await File(p.join(downloadDirectory.path, fileName)).exists()) {
         fileName =
             '${safeBaseName}_${DateTime.now().millisecondsSinceEpoch}.${resolvedExtension ?? 'part'}';
-        outputFile = File(p.join(downloadDirectory.path, fileName));
       }
+      outputFile = File(
+        p.join(
+          workDirectory.path,
+          '${DateTime.now().microsecondsSinceEpoch}_$fileName',
+        ),
+      );
 
       var receivedBytes = 0;
       var lastNotifiedProgress = 0.0;
@@ -718,19 +810,26 @@ class DocumentDownloadProvider extends ChangeNotifier {
         }
         resolvedExtension = detectedExtension;
         var finalName = '$safeBaseName.$resolvedExtension';
-        var finalFile = File(p.join(downloadDirectory.path, finalName));
+        final finalFile = File(p.join(downloadDirectory.path, finalName));
         if (await finalFile.exists()) {
           finalName =
               '${safeBaseName}_${DateTime.now().millisecondsSinceEpoch}.$resolvedExtension';
-          finalFile = File(p.join(downloadDirectory.path, finalName));
         }
-        outputFile = await outputFile.rename(finalFile.path);
         fileName = finalName;
       }
       if (!await _matchesExpectedFormat(outputFile, resolvedExtension)) {
         throw const FormatException(
           'Downloaded content does not match the declared file type',
         );
+      }
+
+      final permanentFile = File(p.join(downloadDirectory.path, fileName));
+      try {
+        outputFile = await outputFile.rename(permanentFile.path);
+      } on FileSystemException {
+        await outputFile?.copy(permanentFile.path);
+        await outputFile?.delete();
+        outputFile = permanentFile;
       }
 
       final kind = _kindOf(resolvedExtension);
@@ -745,6 +844,14 @@ class DocumentDownloadProvider extends ChangeNotifier {
           // The download remains available inside the app when Photos access
           // is denied or saving to the library fails.
           debugPrint('Saving downloaded video to Photos failed: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      } else if (kind == DownloadedFileKind.image) {
+        try {
+          await Gal.putImage(outputFile.path);
+          savedToPhotos = true;
+        } catch (error, stackTrace) {
+          debugPrint('Saving downloaded image to Photos failed: $error');
           debugPrintStack(stackTrace: stackTrace);
         }
       }
@@ -766,9 +873,12 @@ class DocumentDownloadProvider extends ChangeNotifier {
       if (outputFile != null && await outputFile.exists()) {
         await outputFile.delete();
       }
-      _errorMessage = _isNetworkError(error)
-          ? _offlineMessage
-          : 'تعذّر تحميل الملف. تأكد من الرابط ونوع الملف ثم حاول مرة أخرى.';
+      if (_isNetworkError(error)) {
+        _errorMessage = _offlineMessage;
+      } else {
+        _errorMessage =
+            'تعذّر تحميل الملف. تأكد من الرابط ونوع الملف ثم حاول مرة أخرى.';
+      }
       debugPrint('Document download failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       return null;

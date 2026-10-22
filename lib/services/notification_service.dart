@@ -15,12 +15,8 @@ class NotificationService {
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<String>? _tokenSubscription;
-  StreamSubscription<RemoteMessage>? _openedSubscription;
   bool _initialized = false;
   String? _token;
-
-  String? get token => _token;
-  bool get isInitialized => _initialized;
 
   bool get _isApplePlatform =>
       !kIsWeb &&
@@ -82,18 +78,10 @@ class NotificationService {
         sound: false,
       );
     }
-    unawaited(refreshToken());
-
-    final initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) {
-      debugPrint('Opened from notification: ${initialMessage.messageId}');
-    }
-    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-      (message) => debugPrint('Notification opened: ${message.messageId}'),
-    );
+    unawaited(_refreshToken());
   }
 
-  Future<String?> refreshToken({int maxAttempts = 3}) async {
+  Future<String?> _refreshToken({int maxAttempts = 3}) async {
     if (_isApplePlatform) {
       final apnsToken = await _waitForApnsToken();
       if (apnsToken == null) {
@@ -139,21 +127,6 @@ class NotificationService {
     return null;
   }
 
-  /* Internal notification test helper disabled for production.
-  Future<bool> showTestNotification() async {
-    return AwesomeNotifications().createNotification(
-      content: NotificationContent(
-        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-        channelKey: channelKey,
-        title: 'الإشعارات تعمل بنجاح',
-        body: 'هذا إشعار اختبار محلي من التطبيق.',
-        notificationLayout: NotificationLayout.Default,
-        category: NotificationCategory.Status,
-      ),
-    );
-  }
-  */
-
   Future<void> _requestPermission() async {
     var isAllowed = await AwesomeNotifications().isNotificationAllowed();
     if (!isAllowed) {
@@ -166,9 +139,9 @@ class NotificationService {
       badge: true,
       sound: true,
     );
-    debugPrint(
-      'Notification permission: local=$isAllowed, FCM=${settings.authorizationStatus.name}',
-    );
+    if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      debugPrint('Notification permission was denied.');
+    }
   }
 
   Future<void> _showRemoteNotification(RemoteMessage message) async {
@@ -177,7 +150,6 @@ class NotificationService {
     final body = notification?.body ?? message.data['body']?.toString();
 
     if (title == null && body == null) {
-      debugPrint('FCM message has no displayable title/body: ${message.data}');
       return;
     }
 
@@ -198,35 +170,26 @@ class NotificationService {
   @pragma('vm:entry-point')
   static Future<void> onNotificationCreatedMethod(
     ReceivedNotification receivedNotification,
-  ) async {
-    debugPrint('Notification created: ${receivedNotification.id}');
-  }
+  ) async {}
 
   @pragma('vm:entry-point')
   static Future<void> onNotificationDisplayedMethod(
     ReceivedNotification receivedNotification,
-  ) async {
-    debugPrint('Notification displayed: ${receivedNotification.id}');
-  }
+  ) async {}
 
   @pragma('vm:entry-point')
   static Future<void> onDismissActionReceivedMethod(
     ReceivedAction receivedAction,
-  ) async {
-    debugPrint('Notification dismissed: ${receivedAction.id}');
-  }
+  ) async {}
 
   @pragma('vm:entry-point')
   static Future<void> onActionReceivedMethod(
     ReceivedAction receivedAction,
-  ) async {
-    debugPrint('Notification action: ${receivedAction.payload}');
-  }
+  ) async {}
 
   Future<void> dispose() async {
     await _foregroundSubscription?.cancel();
     await _tokenSubscription?.cancel();
-    await _openedSubscription?.cancel();
     _initialized = false;
   }
 }

@@ -69,10 +69,9 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _openDownloads() async {
+  void _openDownloads() {
     final config = context.read<AppConfigProvider>();
-    await config.refreshDocumentDownloadAvailability();
-    if (!mounted || !config.documentDownloadEnabled) return;
+    if (!config.documentDownloadEnabled) return;
     setState(() => _currentIndex = 1);
   }
 
@@ -96,7 +95,7 @@ class _MainScreenState extends State<MainScreen> {
     final screens = [
       HomeScreen(
         onOpenSettings: () => setState(() => _currentIndex = 3),
-        onOpenDownloads: () => unawaited(_openDownloads()),
+        onOpenDownloads: _openDownloads,
         onOpenProjects: () => setState(() => _currentIndex = 2),
       ),
       downloadEnabled
@@ -116,7 +115,7 @@ class _MainScreenState extends State<MainScreen> {
         busy: _isPicking,
         onSelected: (index) {
           if (index == 1) {
-            unawaited(_openDownloads());
+            _openDownloads();
           } else {
             setState(() => _currentIndex = index);
           }

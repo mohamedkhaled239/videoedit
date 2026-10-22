@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:videoedit/models/app_config.dart';
 import 'package:videoedit/models/video_project.dart';
 import 'package:videoedit/providers/document_download_provider.dart';
 import 'package:videoedit/utils/video_editing_rules.dart';
@@ -108,6 +109,7 @@ void main() {
         ),
       ),
       documentsDirectoryProvider: () async => temporaryDirectory,
+      temporaryDirectoryProvider: () async => temporaryDirectory,
     );
 
     final downloaded = await provider.downloadDocument(
@@ -140,6 +142,7 @@ void main() {
           ),
         ),
         documentsDirectoryProvider: () async => temporaryDirectory,
+        temporaryDirectoryProvider: () async => temporaryDirectory,
       );
 
       final downloaded = await provider.downloadDocument(
@@ -151,4 +154,76 @@ void main() {
       expect(downloaded.kind, DownloadedFileKind.video);
     },
   );
+
+  test('remote settings default to disabled and parse resolver values', () {
+    expect(AppConfig.defaultConfig().enableVideoDownload, isFalse);
+    expect(AppConfig.defaultConfig().enableAds, isFalse);
+    expect(AppConfig.defaultConfig().resolverEnabled, isFalse);
+
+    final config = AppConfig.fromFirestore({
+      'evd': true,
+      'rap': ' https://resolver.example.com/ ',
+      'rah': 'resolver.p.rapidapi.com',
+      'rak': 'secret',
+      'enableAds': true,
+    });
+    expect(config.enableVideoDownload, isTrue);
+    expect(config.rapidApiBaseUrl, 'https://resolver.example.com/');
+    expect(config.resolverEnabled, isTrue);
+    expect(config.enableAds, isTrue);
+  });
+
+  test('extracts the first HTTP URL from pasted text', () {
+    final provider = DocumentDownloadProvider();
+    expect(
+      provider.extractUrl('شاهد الفيديو (https://example.com/watch/123), الآن'),
+      Uri.parse('https://example.com/watch/123'),
+    );
+    expect(
+      provider.extractUrl('files.example.com/movie.mp4'),
+      Uri.parse('https://files.example.com/movie.mp4'),
+    );
+  });
+
+  test('resolves a social URL with the documented RapidAPI contract', () async {
+    late http.Request capturedRequest;
+    final provider = DocumentDownloadProvider(
+      clientFactory: () => MockClient((request) async {
+        capturedRequest = request;
+        return http.Response(
+          '''{"thumbnail":"https://cdn.example/thumb.jpg","medias":[{"url":"https://cdn.example/video.mp4","quality":"720p","extension":"mp4","type":"video"}],"error":false}''',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+    );
+    provider.updateConfig(
+      const AppConfig(
+        enableVideoDownload: true,
+        rapidApiBaseUrl: 'https://resolver.example.com',
+        rapidApiHost: 'resolver.p.rapidapi.com',
+        rapidApiKey: 'secret',
+      ),
+    );
+
+    final options = await provider.resolveMedia(
+      'https://social.example.com/post/123',
+    );
+
+    expect(capturedRequest.method, 'POST');
+    expect(capturedRequest.url.path, '/v1/social/autolink');
+    expect(capturedRequest.headers['x-rapidapi-key'], 'secret');
+    expect(
+      capturedRequest.headers['x-rapidapi-host'],
+      'resolver.p.rapidapi.com',
+    );
+    expect(capturedRequest.body, contains('social.example.com'));
+    expect(options, hasLength(1));
+    expect(options!.single.label, 'Video · 720p');
+    expect(options.single.fileExtension, 'mp4');
+    expect(
+      options.single.thumbnail,
+      Uri.parse('https://cdn.example/thumb.jpg'),
+    );
+  });
 }

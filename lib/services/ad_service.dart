@@ -8,7 +8,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdService {
   // Firebase-controlled ads toggle
-  static bool _adsEnabled = true;
+  static bool _adsEnabled = false;
 
   /// Update ads enabled status from Firebase config
   static void setAdsEnabled(bool enabled) {

@@ -1,18 +1,44 @@
 class AppConfig {
+  const AppConfig({
+    this.enableVideoDownload = false,
+    this.rapidApiBaseUrl,
+    this.rapidApiHost,
+    this.rapidApiKey,
+    this.enableAds = false,
+  });
+
+  final bool enableVideoDownload;
+  final String? rapidApiBaseUrl;
+  final String? rapidApiHost;
+  final String? rapidApiKey;
   final bool enableAds;
 
-  AppConfig({this.enableAds = true});
+  bool get resolverEnabled =>
+      enableVideoDownload &&
+      rapidApiBaseUrl != null &&
+      rapidApiHost != null &&
+      rapidApiKey != null;
 
   factory AppConfig.fromFirestore(Map<String, dynamic> data) {
-    return AppConfig(enableAds: data['enableAds'] ?? true);
+    String? optionalString(String shortKey, String legacyKey) {
+      for (final key in [shortKey, legacyKey]) {
+        final value = data[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+      return null;
+    }
+
+    return AppConfig(
+      enableVideoDownload:
+          data['evd'] == true || data['enableVideoDownload'] == true,
+      rapidApiBaseUrl: optionalString('rap', 'rapidApiBaseUrl'),
+      rapidApiHost: optionalString('rah', 'rapidApiHost'),
+      rapidApiKey: optionalString('rak', 'rapidApiKey'),
+      enableAds: data['enableAds'] == true,
+    );
   }
 
-  Map<String, dynamic> toMap() {
-    return {'enableAds': enableAds};
-  }
-
-  // Default config
-  factory AppConfig.defaultConfig() {
-    return AppConfig(enableAds: true);
-  }
+  factory AppConfig.defaultConfig() => const AppConfig();
 }

@@ -6,13 +6,13 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:open_file/open_file.dart';
 import 'package:provider/provider.dart';
 
+import '../models/resolved_media.dart';
 import '../providers/document_download_provider.dart';
 import '../services/ad_service.dart';
 import '../utils/app_colors.dart';
 import '../widgets/studio_brand.dart';
 
-/// Downloads direct, authorized file URLs. Platform pages and protected streams
-/// are not treated as direct media files.
+/// Downloads direct files and resolves supported social links through RapidAPI.
 class DocumentDownloadScreen extends StatefulWidget {
   const DocumentDownloadScreen({super.key, this.activateAds = false});
 
@@ -102,18 +102,99 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     _focusNode.unfocus();
     setState(() => _isDownloading = true);
+
+    final provider = context.read<DocumentDownloadProvider>();
+    final options = await provider.resolveMedia(_urlController.text);
+    if (!mounted) return;
+    if (options == null) {
+      _showMessage(
+        provider.errorMessage ?? 'تعذر قراءة الرابط. حاول مرة أخرى.',
+        error: true,
+      );
+      setState(() => _isDownloading = false);
+      return;
+    }
+
+    final selected = options.length == 1
+        ? options.first
+        : await _chooseMedia(options);
+    if (!mounted) return;
+    if (selected == null) {
+      setState(() => _isDownloading = false);
+      return;
+    }
+
     AdService.showInterstitialAd(
       onAdDismissed: () {
-        if (mounted) unawaited(_downloadValidatedFile());
+        if (mounted) unawaited(_downloadValidatedFile(selected));
       },
     );
   }
 
-  Future<void> _downloadValidatedFile() async {
+  Future<ResolvedMedia?> _chooseMedia(List<ResolvedMedia> options) {
+    return showModalBottomSheet<ResolvedMedia>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'اختر الجودة',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              if (options.first.thumbnail != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.network(
+                    options.first.thumbnail.toString(),
+                    height: 150,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              if (options.first.thumbnail != null) const SizedBox(height: 10),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final option = options[index];
+                    return ListTile(
+                      leading: Icon(
+                        option.kind == 'audio'
+                            ? Icons.audio_file_outlined
+                            : Icons.video_file_outlined,
+                      ),
+                      title: Text(option.label),
+                      subtitle: option.fileExtension == null
+                          ? null
+                          : Text(option.fileExtension!.toUpperCase()),
+                      trailing: const Icon(Icons.download_rounded),
+                      onTap: () => Navigator.pop(context, option),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _downloadValidatedFile(ResolvedMedia media) async {
     final provider = context.read<DocumentDownloadProvider>();
     try {
       final downloaded = await provider.downloadDocument(
-        _urlController.text.trim(),
+        media.url.toString(),
+        preferredExtension: media.fileExtension,
       );
       if (!mounted) return;
       if (downloaded == null) {
@@ -129,12 +210,17 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
           'تم حفظ ${downloaded.fileName} وإضافته إلى Photos.',
         DownloadedFileKind.video =>
           'تم حفظ ${downloaded.fileName} داخل التطبيق، لكن تعذّرت إضافته إلى Photos.',
+        DownloadedFileKind.image when downloaded.savedToPhotos =>
+          'تم حفظ ${downloaded.fileName} وإضافته إلى Photos.',
+        DownloadedFileKind.image =>
+          'تم حفظ ${downloaded.fileName} داخل التطبيق، لكن تعذّرت إضافته إلى Photos.',
         _ => 'تم حفظ ${downloaded.fileName} بنجاح.',
       };
       _showMessage(
         message,
         error:
-            downloaded.kind == DownloadedFileKind.video &&
+            (downloaded.kind == DownloadedFileKind.video ||
+                downloaded.kind == DownloadedFileKind.image) &&
             !downloaded.savedToPhotos,
       );
       _urlController.clear();
@@ -190,7 +276,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'الصق رابطًا مباشرًا لملف مستند لحفظه على جهازك',
+                          'الصق رابط ملف مباشر أو رابط فيديو من منصة اجتماعية',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: AppColors.textSecondary,
@@ -235,7 +321,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'الرابط المباشر للملف',
+              'رابط الملف أو المنشور',
               style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,
@@ -250,14 +336,11 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
               textDirection: TextDirection.ltr,
               onChanged: (_) => setState(() {}),
               validator: (value) {
-                final uri = Uri.tryParse(value?.trim() ?? '');
                 if (value == null || value.trim().isEmpty) {
                   return 'ألصق رابط الملف أولًا';
                 }
-                if (uri == null ||
-                    !const {'http', 'https'}.contains(uri.scheme) ||
-                    uri.host.isEmpty) {
-                  return 'أدخل رابطًا مباشرًا وصحيحًا للملف';
+                if (provider.extractUrl(value) == null) {
+                  return 'أدخل رابطًا صحيحًا أو نصًا يحتوي على رابط';
                 }
                 return null;
               },
@@ -301,7 +384,11 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
             ],
             const SizedBox(height: 20),
             MintButton(
-              label: _isDownloading ? 'جاري تنزيل الملف' : 'تنزيل الملف',
+              label: provider.isResolving
+                  ? 'جاري قراءة الرابط'
+                  : _isDownloading
+                  ? 'جاري تنزيل الملف'
+                  : 'تنزيل الملف',
               icon: Icons.download_for_offline_outlined,
               onPressed: _startDownload,
               busy: _isDownloading,

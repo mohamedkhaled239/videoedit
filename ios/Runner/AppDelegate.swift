@@ -10,17 +10,6 @@ import AVFoundation
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     let controller = window!.rootViewController as! FlutterViewController
-    let fcmDiagnostics = FlutterMethodChannel(
-      name: "videoedit/fcm_diagnostics",
-      binaryMessenger: controller.binaryMessenger
-    )
-    fcmDiagnostics.setMethodCallHandler { call, result in
-      guard call.method == "getBundleIdentifier" else {
-        result(FlutterMethodNotImplemented)
-        return
-      }
-      result(Bundle.main.bundleIdentifier)
-    }
     let audioMixer = FlutterMethodChannel(
       name: "videoedit/audio_mixer",
       binaryMessenger: controller.binaryMessenger

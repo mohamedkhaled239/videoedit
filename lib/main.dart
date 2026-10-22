@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -20,10 +18,6 @@ import 'firebase_options.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint("--- إشعار جديد في الخلفية ---");
-  debugPrint("ID: ${message.messageId}");
-  debugPrint("Title: ${message.notification?.title}");
-  debugPrint("Body: ${message.notification?.body}");
 }
 
 void main() async {
@@ -40,12 +34,6 @@ void main() async {
   }
 
   runApp(const MyApp());
-
-  unawaited(
-    AdService.initialize().then((_) {
-      AdService.loadInterstitialAd();
-    }),
-  );
 }
 
 class MyApp extends StatefulWidget {
@@ -89,7 +77,17 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => AppConfigProvider()),
         ChangeNotifierProvider(create: (_) => VideoEditorProvider()),
         ChangeNotifierProvider(create: (_) => ProjectsProvider()),
-        ChangeNotifierProvider(create: (_) => DocumentDownloadProvider()),
+        ChangeNotifierProxyProvider<
+          AppConfigProvider,
+          DocumentDownloadProvider
+        >(
+          create: (_) => DocumentDownloadProvider(),
+          update: (_, config, downloader) {
+            final value = downloader ?? DocumentDownloadProvider();
+            value.updateConfig(config.config);
+            return value;
+          },
+        ),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, child) {

@@ -6,8 +6,6 @@ import 'package:videoedit/utils/app_colors.dart';
 import 'package:videoedit/widgets/custom_app_bar.dart';
 import 'package:videoedit/l10n/app_localizations.dart';
 import 'package:videoedit/providers/locale_provider.dart';
-import 'package:videoedit/screens/fcm_diagnostics_screen.dart';
-// import 'package:videoedit/services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,65 +17,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _supportUrl = 'https://3reeb.com';
   static const _marketingUrl = 'https://3reeb.com/app-ads.txt';
-
-  /* Disabled for production. Keep this helper commented so it can be restored
-     during internal QA without exposing notification diagnostics to users.
-  Future<void> _testNotifications() async {
-    final service = NotificationService();
-    final localNotificationShown = await service.showTestNotification();
-    final token = service.token ?? await service.refreshToken(maxAttempts: 1);
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('اختبار الإشعارات', textAlign: TextAlign.center),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              localNotificationShown
-                  ? Icons.notifications_active_outlined
-                  : Icons.notifications_off_outlined,
-              color: localNotificationShown ? AppColors.primary : Colors.red,
-              size: 46,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              localNotificationShown
-                  ? 'تم عرض إشعار الاختبار المحلي بنجاح.'
-                  : 'تعذّر عرض الإشعار المحلي. راجع إذن الإشعارات.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              token != null
-                  ? 'Firebase Messaging متصل والتوكن جاهز.'
-                  : 'الإشعار المحلي يعمل، لكن FCM token غير متاح حاليًا.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary),
-            ),
-          ],
-        ),
-        actions: [
-          if (token != null)
-            TextButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: token));
-                if (context.mounted) Navigator.pop(context);
-              },
-              icon: const Icon(Icons.copy_rounded),
-              label: const Text('نسخ FCM token'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إغلاق'),
-          ),
-        ],
-      ),
-    );
-  }
-  */
 
   void _showLanguageDialog() {
     final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
@@ -593,29 +532,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               children: [
-                /* Internal notification diagnostic intentionally hidden in
-                   production builds.
-                SettingsItem(
-                  icon: Icons.notifications_active_outlined,
-                  title: 'اختبار الإشعارات',
-                  onTap: _testNotifications,
-                ),
-                */
                 SettingsItem(
                   icon: Icons.language,
                   title: AppLocalizations.of(context)!.language,
                   onTap: _showLanguageDialog,
-                ),
-                SettingsItem(
-                  icon: Icons.bug_report_outlined,
-                  title: 'تشخيص إشعارات FCM',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const FcmDiagnosticsScreen(),
-                      ),
-                    );
-                  },
                 ),
                 SettingsItem(
                   icon: Icons.report_problem_outlined,
