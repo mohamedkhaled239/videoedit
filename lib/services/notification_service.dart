@@ -20,6 +20,7 @@ class NotificationService {
   String? _token;
 
   String? get token => _token;
+  bool get isInitialized => _initialized;
 
   bool get _isApplePlatform =>
       !kIsWeb &&
@@ -64,7 +65,7 @@ class NotificationService {
     _tokenSubscription = _messaging.onTokenRefresh.listen(
       (token) {
         _token = token;
-        debugPrint('FCM token refreshed: $token');
+        if (kDebugMode) debugPrint('FCM token refreshed.');
       },
       onError: (Object error) => debugPrint('FCM token refresh error: $error'),
     );
@@ -105,7 +106,7 @@ class NotificationService {
       try {
         _token = await _messaging.getToken();
         if (_token != null) {
-          debugPrint('FCM Token: $_token');
+          if (kDebugMode) debugPrint('FCM token is available.');
           return _token;
         }
       } catch (error) {

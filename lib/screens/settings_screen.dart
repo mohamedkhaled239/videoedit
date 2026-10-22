@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 // import 'package:flutter/services.dart'; // Notification test only.
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import 'package:videoedit/utils/app_colors.dart';
 import 'package:videoedit/widgets/custom_app_bar.dart';
 import 'package:videoedit/l10n/app_localizations.dart';
 import 'package:videoedit/providers/locale_provider.dart';
+import 'package:videoedit/screens/fcm_diagnostics_screen.dart';
 // import 'package:videoedit/services/notification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -605,6 +607,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: AppLocalizations.of(context)!.language,
                   onTap: _showLanguageDialog,
                 ),
+                if (kDebugMode)
+                  SettingsItem(
+                    icon: Icons.bug_report_outlined,
+                    title: 'تشخيص إشعارات FCM (Debug)',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const FcmDiagnosticsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 SettingsItem(
                   icon: Icons.report_problem_outlined,
                   title: AppLocalizations.of(context)!.reportAProblem,

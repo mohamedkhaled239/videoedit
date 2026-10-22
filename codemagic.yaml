@@ -90,6 +90,21 @@ workflows:
             --build-number="$BUILD_NUMBER" \
             --export-options-plist=/Users/builder/export_options.plist
 
+      - name: Verify signed push entitlement
+        script: |
+          set -e
+          APP_PATH="build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app"
+          ENTITLEMENTS_PATH="/tmp/Runner-signed-entitlements.plist"
+          test -d "$APP_PATH"
+          codesign -d --entitlements :- "$APP_PATH" > "$ENTITLEMENTS_PATH"
+          APS_ENVIRONMENT=$(/usr/libexec/PlistBuddy -c \
+            "Print :aps-environment" "$ENTITLEMENTS_PATH")
+          if [ "$APS_ENVIRONMENT" != "production" ]; then
+            echo "Expected production aps-environment, got: $APS_ENVIRONMENT"
+            exit 1
+          fi
+          echo "Signed archive contains aps-environment=production"
+
     artifacts:
       - build/ios/ipa/*.ipa
       - build/ios/archive/*.xcarchive

@@ -59,7 +59,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCPRVOdhyNagsTE-RiRZPChja7xU043nHU',
-    appId: '1:60905321445:ios:f70c31678e0f812004f50c',
+    appId: '1:60905321445:ios:b39b6d9395b65bd704f50c',
     messagingSenderId: '60905321445',
     projectId: 'videoedit-88155',
     storageBucket: 'videoedit-88155.firebasestorage.app',
