@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 // import 'package:flutter/services.dart'; // Notification test only.
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
@@ -607,10 +606,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: AppLocalizations.of(context)!.language,
                   onTap: _showLanguageDialog,
                 ),
-                if (kDebugMode)
+                if (fcmDiagnosticsEnabled)
                   SettingsItem(
                     icon: Icons.bug_report_outlined,
-                    title: 'تشخيص إشعارات FCM (Debug)',
+                    title: 'تشخيص إشعارات FCM',
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
