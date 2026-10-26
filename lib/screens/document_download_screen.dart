@@ -31,6 +31,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
   bool _isDownloading = false;
   NativeAd? _nativeAd;
   bool _nativeAdReady = false;
+  bool _nativeAdLoading = false;
 
   @override
   void initState() {
@@ -49,15 +50,20 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
   }
 
   Future<void> _loadNativeAd() async {
-    if (_nativeAd != null) return;
+    if (_nativeAd != null || _nativeAdLoading) return;
+    _nativeAdLoading = true;
     await AdService.initialize();
-    if (!mounted || !widget.activateAds || !AdService.canLoadAds) return;
+    if (!mounted || !widget.activateAds || !AdService.canLoadAds) {
+      _nativeAdLoading = false;
+      return;
+    }
 
     late final NativeAd ad;
     ad = NativeAdHelper.createNativeAd(
       adUnitId: AdService.nativeAdUnitId,
       templateType: TemplateType.medium,
       onAdLoaded: (_) {
+        _nativeAdLoading = false;
         if (!mounted || !widget.activateAds) {
           ad.dispose();
           return;
@@ -65,6 +71,7 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
         setState(() => _nativeAdReady = true);
       },
       onAdFailedToLoad: (_, error) {
+        _nativeAdLoading = false;
         debugPrint('Video downloader native ad failed: ${error.message}');
         ad.dispose();
         if (identical(_nativeAd, ad)) _nativeAd = null;
@@ -241,6 +248,14 @@ class _DocumentDownloadScreenState extends State<DocumentDownloadScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DocumentDownloadProvider>();
+    if (widget.activateAds &&
+        AdService.adsEnabled &&
+        _nativeAd == null &&
+        !_nativeAdLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadNativeAd());
+      });
+    }
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(

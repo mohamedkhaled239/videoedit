@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 
 import '../models/video_project.dart';
+import '../providers/app_config_provider.dart';
 import '../providers/projects_provider.dart';
 import '../providers/video_editor_provider.dart';
 import '../services/ad_service.dart';
@@ -23,6 +25,7 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   NativeAd? _nativeAd;
   bool _nativeAdReady = false;
+  bool _nativeAdLoading = false;
 
   @override
   void initState() {
@@ -31,13 +34,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Future<void> _loadNativeAd() async {
+    if (_nativeAd != null || _nativeAdLoading) return;
+    _nativeAdLoading = true;
     await AdService.initialize();
-    if (!mounted || !AdService.canLoadAds || _nativeAd != null) return;
+    if (!mounted || !AdService.canLoadAds) {
+      _nativeAdLoading = false;
+      return;
+    }
 
     late final NativeAd ad;
     ad = NativeAdHelper.createNativeAd(
       adUnitId: AdService.nativeAdUnitId,
       onAdLoaded: (_) {
+        _nativeAdLoading = false;
         if (!mounted) {
           ad.dispose();
           return;
@@ -45,6 +54,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         setState(() => _nativeAdReady = true);
       },
       onAdFailedToLoad: (_, error) {
+        _nativeAdLoading = false;
         debugPrint('Projects native ad failed: ${error.message}');
         ad.dispose();
         if (identical(_nativeAd, ad)) _nativeAd = null;
@@ -63,6 +73,12 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<ProjectsProvider>();
+    final adsEnabled = context.watch<AppConfigProvider>().config.enableAds;
+    if (adsEnabled && _nativeAd == null && !_nativeAdLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadNativeAd());
+      });
+    }
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(

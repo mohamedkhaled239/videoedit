@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/app_config_provider.dart';
 
 import 'main_screen.dart';
 
@@ -12,12 +15,25 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  Timer? _timer;
+  bool _started = false;
 
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer(const Duration(seconds: 3), _openApp);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    unawaited(_waitForStartup());
+  }
+
+  Future<void> _waitForStartup() async {
+    final configCheck = context
+        .read<AppConfigProvider>()
+        .initialDownloadAvailabilityCheck;
+    await Future.wait<void>([
+      Future<void>.delayed(const Duration(seconds: 3)),
+      configCheck,
+    ]);
+    _openApp();
   }
 
   void _openApp() {
@@ -26,18 +42,10 @@ class _SplashScreenState extends State<SplashScreen> {
       PageRouteBuilder<void>(
         pageBuilder: (_, _, _) => const MainScreen(),
         transitionDuration: const Duration(milliseconds: 350),
-        transitionsBuilder: (_, animation, _, child) => FadeTransition(
-          opacity: animation,
-          child: child,
-        ),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
   }
 
   @override

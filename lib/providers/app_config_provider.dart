@@ -16,8 +16,9 @@ class AppConfigProvider extends ChangeNotifier {
   AppConfigProvider({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance {
     unawaited(loadConfig());
-    unawaited(refreshDocumentDownloadAvailability());
-    _listenToDocumentDownloadAvailability();
+    _initialDownloadAvailabilityCheck =
+        _initializeDocumentDownloadAvailability();
+    unawaited(_initialDownloadAvailabilityCheck);
   }
 
   final FirebaseFirestore _firestore;
@@ -27,11 +28,14 @@ class AppConfigProvider extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
   bool _documentDownloadEnabled = false;
+  late final Future<void> _initialDownloadAvailabilityCheck;
 
   AppConfig get config => _config;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get documentDownloadEnabled => _documentDownloadEnabled;
+  Future<void> get initialDownloadAvailabilityCheck =>
+      _initialDownloadAvailabilityCheck;
 
   DocumentReference<Map<String, dynamic>> get _configDocument =>
       _firestore.collection(_collectionName).doc(_documentName);
@@ -44,6 +48,7 @@ class AppConfigProvider extends ChangeNotifier {
   Future<void> loadConfig() async {
     _isLoading = true;
     notifyListeners();
+    var hasCachedConfig = false;
     try {
       final projectId = _firestore.app.options.projectId;
       debugPrint(
@@ -51,19 +56,23 @@ class AppConfigProvider extends ChangeNotifier {
         'path=$_collectionName/$_documentName',
       );
 
-      DocumentSnapshot<Map<String, dynamic>> snapshot;
       try {
-        snapshot = await _configDocument
-            .get(const GetOptions(source: Source.server))
-            .timeout(const Duration(seconds: 8));
-      } catch (serverError) {
-        debugPrint(
-          '[RemoteSettings] Server read failed; trying cache: $serverError',
-        );
-        snapshot = await _configDocument.get(
+        final cachedSnapshot = await _configDocument.get(
           const GetOptions(source: Source.cache),
         );
+        if (cachedSnapshot.exists && cachedSnapshot.data() != null) {
+          hasCachedConfig = true;
+          _config = AppConfig.fromFirestore(cachedSnapshot.data()!);
+          _applyAdsConfig();
+          notifyListeners();
+        }
+      } catch (cacheError) {
+        debugPrint('[RemoteSettings] Cache unavailable: $cacheError');
       }
+
+      final snapshot = await _configDocument
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 3));
       _config = snapshot.exists && snapshot.data() != null
           ? AppConfig.fromFirestore(snapshot.data()!)
           : AppConfig.defaultConfig();
@@ -80,28 +89,43 @@ class AppConfigProvider extends ChangeNotifier {
         'resolverConfigured=${_config.resolverEnabled}',
       );
     } catch (error, stackTrace) {
-      _config = AppConfig.defaultConfig();
+      if (!hasCachedConfig) _config = AppConfig.defaultConfig();
       final code = error is FirebaseException ? error.code : 'unknown';
       _errorMessage = 'تعذر تحميل إعدادات التنزيل ($code).';
       debugPrint('[RemoteSettings] Failed code=$code error=$error');
       debugPrintStack(stackTrace: stackTrace);
     } finally {
       _isLoading = false;
-      AdService.setAdsEnabled(_config.enableAds);
-      if (_config.enableAds) {
-        unawaited(
-          AdService.initialize().then((_) => AdService.loadInterstitialAd()),
-        );
-      }
+      _applyAdsConfig();
       notifyListeners();
     }
+  }
+
+  void _applyAdsConfig() {
+    final wasEnabled = AdService.adsEnabled;
+    AdService.setAdsEnabled(_config.enableAds);
+    if (_config.enableAds && !wasEnabled) {
+      unawaited(
+        AdService.initialize().then((_) {
+          if (!AdService.canLoadAds) return;
+          AdService.loadInterstitialAd();
+          AdService.loadAppOpenAd();
+        }),
+      );
+    }
+  }
+
+  Future<void> _initializeDocumentDownloadAvailability() async {
+    _setDocumentDownloadEnabled(false);
+    await refreshDocumentDownloadAvailability();
+    _listenToDocumentDownloadAvailability();
   }
 
   Future<void> refreshDocumentDownloadAvailability() async {
     try {
       final snapshot = await _downloadConfigDocument
           .get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 3));
       _setDocumentDownloadEnabled(
         snapshot.exists && snapshot.data()?[_downloadFieldName] == true,
       );
@@ -120,7 +144,8 @@ class AppConfigProvider extends ChangeNotifier {
         .snapshots(includeMetadataChanges: true)
         .listen(
           (snapshot) {
-            // A cached true value must not expose a remotely disabled feature.
+            // This feature is fail-closed: only a fresh server response may
+            // expose it. Firestore's persisted cache is never authoritative.
             if (snapshot.metadata.isFromCache) return;
             _setDocumentDownloadEnabled(
               snapshot.exists && snapshot.data()?[_downloadFieldName] == true,
